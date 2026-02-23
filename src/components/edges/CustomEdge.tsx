@@ -1,0 +1,70 @@
+import { memo } from 'react';
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+} from '@xyflow/react';
+import type { EdgeProps } from '@xyflow/react';
+import type { AnodiEdgeData } from '../../types';
+import { EDGE_STYLES } from '../../types';
+
+type Props = EdgeProps & { data?: AnodiEdgeData };
+
+const CustomEdge = memo(
+  ({
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    data,
+    selected,
+  }: Props) => {
+    const rel = data?.relationship ?? 'call';
+    const style = EDGE_STYLES[rel];
+
+    const [edgePath, labelX, labelY] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+    });
+
+    const strokeStyle = {
+      stroke: style.color,
+      strokeWidth: selected ? 2.5 : 1.5,
+      strokeDasharray: style.strokeDasharray,
+      opacity: selected ? 1 : 0.75,
+    };
+
+    return (
+      <>
+        <BaseEdge id={id} path={edgePath} style={strokeStyle} />
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: 'all',
+            }}
+            className="nodrag nopan"
+          >
+            <span
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow"
+              style={{ backgroundColor: style.color }}
+            >
+              {style.label}
+            </span>
+          </div>
+        </EdgeLabelRenderer>
+      </>
+    );
+  }
+);
+
+CustomEdge.displayName = 'CustomEdge';
+export default CustomEdge;
