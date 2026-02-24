@@ -51,13 +51,15 @@ export function searchNodes(nodes: AnodiNode[], query: string): SearchMatch[] {
       }
     } else if (data.kind === 'memory') {
       const hits: string[] = [];
-      data.regions.forEach((r) => {
-        if (
-          r.start.toLowerCase().includes(q) ||
-          r.end.toLowerCase().includes(q) ||
-          r.description.toLowerCase().includes(q)
-        ) {
-          hits.push(`${r.start}–${r.end}: ${r.description}`);
+      if (
+        (data.baseAddress ?? '').toLowerCase().includes(q) ||
+        (data.endAddress ?? '').toLowerCase().includes(q)
+      ) {
+        hits.push(`${data.baseAddress}–${data.endAddress}`);
+      }
+      (data.collapsedRanges ?? []).forEach((r) => {
+        if (r.start.toLowerCase().includes(q) || r.end.toLowerCase().includes(q)) {
+          hits.push(`collapsed: ${r.start}–${r.end}`);
         }
       });
       if (name.toLowerCase().includes(q) || hits.length > 0) {

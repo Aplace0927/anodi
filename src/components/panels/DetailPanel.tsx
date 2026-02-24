@@ -6,7 +6,8 @@ import type {
   SourceLanguage,
   ClassField,
   ClassMethod,
-  MemoryRegion,
+  MemoryCollapsedRange,
+  MemoryUnitSize,
   NodeData,
 } from '../../types';
 import { EDGE_STYLES } from '../../types';
@@ -47,6 +48,20 @@ export default function DetailPanel() {
   // ── Source code panel ──────────────────────────────────────────
   const renderSourcePanel = () => {
     if (data.kind !== 'source') return null;
+
+    // Count how many "..." marker lines exist in the current code
+    const ellipsisIndices: number[] = [];
+    (data.code || '').split('\n').forEach((line, i) => {
+      if (line.trim() === '...') ellipsisIndices.push(i);
+    });
+
+    const handleMapChange = (ellipsisOrdinal: number, value: string) => {
+      const num = parseInt(value, 10);
+      const map = [...(data.collapsedLineMap ?? [])];
+      map[ellipsisOrdinal] = isNaN(num) ? 0 : num;
+      updateNodeData(node.id, { collapsedLineMap: map });
+    };
+
     return (
       <div className="flex flex-col gap-3">
         {/* Language selector */}
@@ -83,6 +98,31 @@ export default function DetailPanel() {
             }}
           />
         </div>
+        {/* Collapsed line map — one input per "..." marker */}
+        {ellipsisIndices.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">
+              Collapsed section start lines
+            </label>
+            <p className="mb-2 text-[10px] text-gray-500">
+              For each <code className="text-gray-300">...</code> line in the code, specify the line
+              number where the next section begins.
+            </p>
+            {ellipsisIndices.map((_, ordinal) => (
+              <div key={ordinal} className="mb-1 flex items-center gap-2">
+                <span className="text-xs text-gray-400">After collapse {ordinal + 1}:</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={(data.collapsedLineMap ?? [])[ordinal] ?? ''}
+                  onChange={(e) => handleMapChange(ordinal, e.target.value)}
+                  placeholder="line #"
+                  className="w-20 rounded border border-gray-600 bg-gray-700 px-2 py-1 text-xs text-white focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -198,62 +238,110 @@ export default function DetailPanel() {
   const renderMemoryPanel = () => {
     if (data.kind !== 'memory') return null;
 
-    const addRegion = () => {
-      const r: MemoryRegion = { id: v4(), start: '0x0000', end: '0x0FFF', description: '' };
-      updateNodeData(node.id, { regions: [...data.regions, r] });
+    const addCollapsedRange = () => {
+      const r: MemoryCollapsedRange = { id: v4(), start: '0x0000', end: '0x0100' };
+      updateNodeData(node.id, { collapsedRanges: [...(data.collapsedRanges ?? []), r] });
     };
-    const removeRegion = (id: string) =>
-      updateNodeData(node.id, { regions: data.regions.filter((r) => r.id !== id) });
-    const updateRegion = (id: string, patch: Partial<MemoryRegion>) =>
+    const removeCollapsedRange = (id: string) =>
       updateNodeData(node.id, {
-        regions: data.regions.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+        collapsedRanges: (data.collapsedRanges ?? []).filter((r) => r.id !== id),
+      });
+    const updateCollapsedRange = (id: string, patch: Partial<MemoryCollapsedRange>) =>
+      updateNodeData(node.id, {
+        collapsedRanges: (data.collapsedRanges ?? []).map((r) =>
+          r.id === id ? { ...r, ...patch } : r,
+        ),
       });
 
     return (
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase text-gray-400">Memory Regions</span>
-          <button
-            onClick={addRegion}
-            className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-indigo-400 hover:bg-indigo-900/40"
-          >
-            <Plus size={12} /> Add
-          </button>
-        </div>
-        {data.regions.map((r) => (
-          <div key={r.id} className="mb-2 rounded border border-gray-700 bg-gray-800/60 p-2">
-            <div className="mb-1 flex items-center gap-1.5">
-              <input
-                value={r.start}
-                onChange={(e) => updateRegion(r.id, { start: e.target.value })}
-                placeholder="start"
-                className="w-24 rounded border border-gray-600 bg-gray-700 px-2 py-1 font-mono text-xs text-green-300 focus:outline-none"
-              />
-              <span className="text-gray-500">–</span>
-              <input
-                value={r.end}
-                onChange={(e) => updateRegion(r.id, { end: e.target.value })}
-                placeholder="end"
-                className="w-24 rounded border border-gray-600 bg-gray-700 px-2 py-1 font-mono text-xs text-green-300 focus:outline-none"
-              />
-              <button
-                onClick={() => removeRegion(r.id)}
-                className="ml-auto text-gray-500 hover:text-red-400"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
+      <div className="space-y-4">
+        {/* Address range */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">
+            Address Range
+          </label>
+          <div className="flex items-center gap-2">
             <input
-              value={r.description}
-              onChange={(e) => updateRegion(r.id, { description: e.target.value })}
-              placeholder="description"
-              className="w-full rounded border border-gray-600 bg-gray-700 px-2 py-1 text-xs text-gray-200 focus:outline-none"
+              value={data.baseAddress ?? ''}
+              onChange={(e) => updateNodeData(node.id, { baseAddress: e.target.value })}
+              placeholder="Base (e.g. 0x4000)"
+              className="flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-1.5 font-mono text-xs text-green-300 focus:outline-none"
+            />
+            <span className="text-gray-500">–</span>
+            <input
+              value={data.endAddress ?? ''}
+              onChange={(e) => updateNodeData(node.id, { endAddress: e.target.value })}
+              placeholder="End (e.g. 0x4200)"
+              className="flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-1.5 font-mono text-xs text-green-300 focus:outline-none"
             />
           </div>
-        ))}
-        {data.regions.length === 0 && (
-          <p className="text-xs text-gray-500 italic">No regions yet</p>
-        )}
+        </div>
+
+        {/* Unit size */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">
+            Unit Size (bytes)
+          </label>
+          <div className="flex gap-2">
+            {([4, 8, 16] as MemoryUnitSize[]).map((u) => (
+              <button
+                key={u}
+                onClick={() => updateNodeData(node.id, { unitSize: u })}
+                className={`flex-1 rounded border py-1 text-xs font-medium transition-all ${
+                  (data.unitSize ?? 8) === u
+                    ? 'border-orange-500 bg-orange-900/40 text-orange-300'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {u}B
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Collapsed ranges */}
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-gray-400">Collapsed Ranges</span>
+            <button
+              onClick={addCollapsedRange}
+              className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-indigo-400 hover:bg-indigo-900/40"
+            >
+              <Plus size={12} /> Add
+            </button>
+          </div>
+          <p className="mb-2 text-[10px] text-gray-500">
+            Address ranges to hide (exclusive end). Shown as <code className="text-gray-300">···</code> in the node.
+          </p>
+          {(data.collapsedRanges ?? []).map((r) => (
+            <div key={r.id} className="mb-2 rounded border border-gray-700 bg-gray-800/60 p-2">
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={r.start}
+                  onChange={(e) => updateCollapsedRange(r.id, { start: e.target.value })}
+                  placeholder="start"
+                  className="w-24 rounded border border-gray-600 bg-gray-700 px-2 py-1 font-mono text-xs text-green-300 focus:outline-none"
+                />
+                <span className="text-gray-500">–</span>
+                <input
+                  value={r.end}
+                  onChange={(e) => updateCollapsedRange(r.id, { end: e.target.value })}
+                  placeholder="end"
+                  className="w-24 rounded border border-gray-600 bg-gray-700 px-2 py-1 font-mono text-xs text-green-300 focus:outline-none"
+                />
+                <button
+                  onClick={() => removeCollapsedRange(r.id)}
+                  className="ml-auto text-gray-500 hover:text-red-400"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {(data.collapsedRanges ?? []).length === 0 && (
+            <p className="text-xs italic text-gray-500">No collapsed ranges</p>
+          )}
+        </div>
       </div>
     );
   };

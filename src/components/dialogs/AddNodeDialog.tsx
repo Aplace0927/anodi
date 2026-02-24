@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
-import type { NodeData, SourceLanguage } from '../../types';
+import type { NodeData, SourceLanguage, MemoryUnitSize } from '../../types';
 
 interface Props {
   onClose: () => void;
@@ -14,16 +14,25 @@ export default function AddNodeDialog({ onClose }: Props) {
   const [nodeType, setNodeType] = useState<'source' | 'class' | 'memory'>('source');
   const [name, setName] = useState('');
   const [lang, setLang] = useState<SourceLanguage>('python');
+  const [baseAddress, setBaseAddress] = useState('0x0000');
+  const [endAddress, setEndAddress] = useState('0x0100');
+  const [unitSize, setUnitSize] = useState<MemoryUnitSize>(8);
 
   const handleAdd = () => {
     const n = name.trim() || 'Untitled';
     let data: NodeData;
     if (nodeType === 'source') {
-      data = { kind: 'source', language: lang, code: '' };
+      data = { kind: 'source', language: lang, code: '', collapsedLineMap: [] };
     } else if (nodeType === 'class') {
       data = { kind: 'class', className: n, fields: [], methods: [] };
     } else {
-      data = { kind: 'memory', regions: [] };
+      data = {
+        kind: 'memory',
+        baseAddress: baseAddress.trim() || '0x0000',
+        endAddress: endAddress.trim() || '0x0100',
+        unitSize,
+        collapsedRanges: [],
+      };
     }
     addNode(n, data);
     onClose();
@@ -98,6 +107,56 @@ export default function AddNodeDialog({ onClose }: Props) {
                 ))}
               </select>
             </div>
+          )}
+
+          {/* Memory fields */}
+          {nodeType === 'memory' && (
+            <>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+                    Base Address
+                  </label>
+                  <input
+                    value={baseAddress}
+                    onChange={(e) => setBaseAddress(e.target.value)}
+                    placeholder="0x0000"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+                    End Address
+                  </label>
+                  <input
+                    value={endAddress}
+                    onChange={(e) => setEndAddress(e.target.value)}
+                    placeholder="0x0100"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+                  Unit Size (bytes)
+                </label>
+                <div className="flex gap-2">
+                  {([4, 8, 16] as MemoryUnitSize[]).map((u) => (
+                    <button
+                      key={u}
+                      onClick={() => setUnitSize(u)}
+                      className={`flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all ${
+                        unitSize === u
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {u}B
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
 

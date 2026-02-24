@@ -14,6 +14,8 @@ export interface SourceCodeData extends Record<string, unknown> {
   kind: 'source';
   language: SourceLanguage;
   code: string;
+  // For each "..." line in code (0-indexed occurrence), the starting line number of the next section.
+  collapsedLineMap: number[];
   name?: string;
 }
 
@@ -36,16 +38,20 @@ export interface ClassDiagramData extends Record<string, unknown> {
   name?: string;
 }
 
-export interface MemoryRegion {
+export type MemoryUnitSize = 4 | 8 | 16;
+
+export interface MemoryCollapsedRange {
   id: string;
-  start: string;
-  end: string;
-  description: string;
+  start: string; // hex address e.g. "0x4050"
+  end: string;   // hex address e.g. "0x4150" (exclusive)
 }
 
 export interface MemoryLayoutData extends Record<string, unknown> {
   kind: 'memory';
-  regions: MemoryRegion[];
+  baseAddress: string;      // start of the memory range, e.g. "0x4000"
+  endAddress: string;       // end of the memory range (exclusive), e.g. "0x4200"
+  unitSize: MemoryUnitSize; // bytes per addressable unit: 4, 8, or 16
+  collapsedRanges: MemoryCollapsedRange[];
   name?: string;
 }
 
