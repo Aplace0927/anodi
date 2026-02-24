@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { SourceCodeData } from '../../types';
+import { ELLIPSIS_MARKER } from '../../utils/code';
 
 type Props = NodeProps & { data: SourceCodeData & { name?: string } };
 
@@ -31,7 +32,7 @@ function parseLines(code: string, collapsedLineMap: number[]): LineItem[] {
   let ellipsisIdx = 0;
 
   for (const raw of rawLines) {
-    if (raw.trim() === '...') {
+    if (raw.trim() === ELLIPSIS_MARKER) {
       items.push('...');
       const nextStart = collapsedLineMap[ellipsisIdx];
       ellipsisIdx++;

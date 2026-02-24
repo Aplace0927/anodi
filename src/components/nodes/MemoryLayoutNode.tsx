@@ -17,8 +17,8 @@ function parseHexAddr(s: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-function fmtHex(n: number): string {
-  return '0x' + n.toString(16).toUpperCase().padStart(4, '0');
+function fmtHex(n: number, padLen: number): string {
+  return '0x' + n.toString(16).toUpperCase().padStart(padLen, '0');
 }
 
 type MemItem = { addr: number; label: string } | '...';
@@ -38,6 +38,9 @@ function buildMemItems(
     end: parseHexAddr(r.end),
   }));
 
+  // Compute padding width from the end address so all labels are consistent
+  const padLen = Math.max(4, end.toString(16).length);
+
   const isCollapsed = (addr: number) =>
     collapsed.some((r) => addr >= r.start && addr < r.end);
 
@@ -51,7 +54,7 @@ function buildMemItems(
       }
     } else {
       inCollapse = false;
-      items.push({ addr, label: fmtHex(addr) });
+      items.push({ addr, label: fmtHex(addr, padLen) });
     }
   }
 

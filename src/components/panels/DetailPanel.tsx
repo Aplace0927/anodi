@@ -12,6 +12,7 @@ import type {
 } from '../../types';
 import { EDGE_STYLES } from '../../types';
 import { v4 } from '../../utils/uuid';
+import { findEllipsisIndices } from '../../utils/code';
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go'];
 
@@ -50,15 +51,16 @@ export default function DetailPanel() {
     if (data.kind !== 'source') return null;
 
     // Count how many "..." marker lines exist in the current code
-    const ellipsisIndices: number[] = [];
-    (data.code || '').split('\n').forEach((line, i) => {
-      if (line.trim() === '...') ellipsisIndices.push(i);
-    });
+    const ellipsisIndices = findEllipsisIndices(data.code || '');
 
     const handleMapChange = (ellipsisOrdinal: number, value: string) => {
       const num = parseInt(value, 10);
       const map = [...(data.collapsedLineMap ?? [])];
-      map[ellipsisOrdinal] = isNaN(num) ? 0 : num;
+      if (isNaN(num)) {
+        delete map[ellipsisOrdinal];
+      } else {
+        map[ellipsisOrdinal] = num;
+      }
       updateNodeData(node.id, { collapsedLineMap: map });
     };
 
