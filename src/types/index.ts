@@ -46,12 +46,32 @@ export interface MemoryCollapsedRange {
   end: string;   // hex address e.g. "0x4150" (exclusive)
 }
 
+/** Type of user-provided content attached to a memory address. */
+export type MemoryCellType = 'hex' | 'text' | 'field';
+
+/**
+ * A user annotation attached to a specific memory address inside a MemoryLayoutNode.
+ *
+ * - `hex`   – raw bytes shown as "41 42 43 00"
+ * - `text`  – plain string shown as "Hello"
+ * - `field` – named field spanning `fieldSize` bytes (e.g. `int size`)
+ */
+export interface MemoryCell {
+  id: string;
+  type: MemoryCellType;
+  address: string;      // hex string, e.g. "0x4010"
+  value?: string;       // for hex / text types
+  fieldName?: string;   // for field type: name of the field
+  fieldSize?: number;   // for field type: size in bytes
+}
+
 export interface MemoryLayoutData extends Record<string, unknown> {
   kind: 'memory';
   baseAddress: string;      // start of the memory range, e.g. "0x4000"
   endAddress: string;       // end of the memory range (exclusive), e.g. "0x4200"
   unitSize: MemoryUnitSize; // bytes per addressable unit: 4, 8, or 16
   collapsedRanges: MemoryCollapsedRange[];
+  cells?: MemoryCell[];     // user-provided content annotations
   name?: string;
 }
 
