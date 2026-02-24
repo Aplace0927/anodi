@@ -9,25 +9,23 @@ import { v4 } from '../../utils/uuid';
 type Props = NodeProps & { data: MemoryLayoutData & { name?: string } };
 
 // ── Global settings ────────────────────────────────────────────────
-/** Byte threshold above which the memory layout auto-collapses the middle. */
-export const MEMORY_THRESHOLD = 0x100; // 256 bytes
-/** Number of unit-rows to show at the head and tail when auto-collapsing. */
+export const MEMORY_THRESHOLD = 0x100;
 export const MEMORY_LINES = 4;
 
-// Fixed pixel heights (must match JSX inline styles below)
+// Fixed pixel heights
 const HEADER_H = 44;
 const BADGE_H = 24;
-const CONTENT_START = HEADER_H + BADGE_H; // = 68
+const CONTENT_START = HEADER_H + BADGE_H; // 68
 const ROW_H = 20;
 const ELLIPSIS_H = 16;
 
-// Node width components (px) — used to compute min-width from unitSize
+// Node width components (px)
 const ADDR_COL_W = 64;
 const GAP_W = 4;
 const BYTE_CELL_W = 20;
-const ANNOTATION_COL_W = 80;
+const ANNOTATION_COL_W = 100;
 
-// Field-annotation colour palette (cycling)
+// Field colour palette (cycling)
 const FIELD_COLORS = [
   { bg: 'bg-blue-800',   text: 'text-blue-200',   border: 'border-blue-500'   },
   { bg: 'bg-purple-800', text: 'text-purple-200', border: 'border-purple-500' },
@@ -47,7 +45,6 @@ function fmtHex(n: number, padLen: number): string {
   return '0x' + n.toString(16).toUpperCase().padStart(padLen, '0');
 }
 
-/** Parse "41 42 43 00" → [0x41, 0x42, 0x43, 0x00] */
 function parseHexBytes(hexStr: string): number[] {
   if (!hexStr.trim()) return [];
   return hexStr
@@ -57,27 +54,27 @@ function parseHexBytes(hexStr: string): number[] {
     .map((h) => parseInt(h, 16));
 }
 
-/** "Hello" → UTF-8 byte array */
 function textToBytes(str: string): number[] {
   return Array.from(new TextEncoder().encode(str));
 }
 
-/** Number of bytes a cell spans (used for size hints in the form). */
 export function cellByteSize(cell: Pick<MemoryCell, 'type' | 'value' | 'fieldSize'>): number {
   if (cell.type === 'field') return cell.fieldSize ?? 1;
   if (cell.type === 'hex') return Math.max(1, parseHexBytes(cell.value ?? '').length);
-  // text type
   return Math.max(1, textToBytes(cell.value ?? '').length);
 }
 
 // ── Byte annotation map ───────────────────────────────────────────
 
 interface ByteAnnotation {
-  value: number;        // 0-255 (0 for field bytes without a real value)
+  value: number;
   type: 'hex' | 'text' | 'field';
   cellId: string;
-  isFirst: boolean;     // first byte of this cell?
-  fieldName?: string;   // only for field type
+  isFirst: boolean;
+  isLast: boolean;
+  fieldName?: string;
+  fieldStartAddr?: number;
+  fieldEndAddr?: number; // exclusive
 }
 
 function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
@@ -90,24 +87,30 @@ function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
       const bytes = parseHexBytes(cell.value ?? '');
       bytes.forEach((b, i) => {
         if (!map.has(startAddr + i))
-          map.set(startAddr + i, { value: b, type: 'hex', cellId: cell.id, isFirst: i === 0 });
+          map.set(startAddr + i, {
+            value: b, type: 'hex', cellId: cell.id,
+            isFirst: i === 0, isLast: i === bytes.length - 1,
+          });
       });
     } else if (cell.type === 'text') {
       const bytes = textToBytes(cell.value ?? '');
       bytes.forEach((b, i) => {
         if (!map.has(startAddr + i))
-          map.set(startAddr + i, { value: b, type: 'text', cellId: cell.id, isFirst: i === 0 });
+          map.set(startAddr + i, {
+            value: b, type: 'text', cellId: cell.id,
+            isFirst: i === 0, isLast: i === bytes.length - 1,
+          });
       });
     } else if (cell.type === 'field') {
       const size = cell.fieldSize ?? 1;
       for (let i = 0; i < size; i++) {
         if (!map.has(startAddr + i))
           map.set(startAddr + i, {
-            value: 0,
-            type: 'field',
-            cellId: cell.id,
-            isFirst: i === 0,
+            value: 0, type: 'field', cellId: cell.id,
+            isFirst: i === 0, isLast: i === size - 1,
             fieldName: cell.fieldName,
+            fieldStartAddr: startAddr,
+            fieldEndAddr: startAddr + size,
           });
       }
     }
@@ -116,9 +119,12 @@ function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
   return map;
 }
 
-// ── Row items (same logic as before, one row per unitSize block) ───
+// ── Row items ─────────────────────────────────────────────────────
 
-type RowItem = { addr: number; label: string } | '...';
+/** A visible row, or a collapsed range marker. */
+type RowItem =
+  | { addr: number; label: string }
+  | { ellipsis: true; fromAddr: number; toAddr: number };
 
 function buildRowItems(
   baseAddress: string,
@@ -151,17 +157,28 @@ function buildRowItems(
 
   const items: RowItem[] = [];
   let inCollapse = false;
+  let collapseStart = 0;
+
   for (let addr = base; addr < end; addr += unitSize) {
     if (isCollapsed(addr)) {
       if (!inCollapse) {
-        items.push('...');
+        collapseStart = addr;
         inCollapse = true;
       }
     } else {
-      inCollapse = false;
+      if (inCollapse) {
+        // Emit the ellipsis now that we know where the collapse ends
+        items.push({ ellipsis: true, fromAddr: collapseStart, toAddr: addr });
+        inCollapse = false;
+      }
       items.push({ addr, label: fmtHex(addr, padLen) });
     }
   }
+  // Handle collapse that extends to the end
+  if (inCollapse) {
+    items.push({ ellipsis: true, fromAddr: collapseStart, toAddr: end });
+  }
+
   return items;
 }
 
@@ -179,12 +196,12 @@ function CellForm({ unitSize, padLen, onAdd, onCancel }: CellFormProps) {
   const [address, setAddress] = useState('');
   const [value, setValue] = useState('');
   const [fieldName, setFieldName] = useState('');
-  const [fieldSize, setFieldSize] = useState(unitSize);
+  const [fieldSize, setFieldSize] = useState<number | ''>(unitSize);
+  const [sizeError, setSizeError] = useState(false);
 
-  // Computed byte size for hex/text so user can see the footprint
   const computedSize =
     type === 'field'
-      ? fieldSize
+      ? typeof fieldSize === 'number' ? fieldSize : 0
       : type === 'hex'
         ? parseHexBytes(value).length
         : textToBytes(value).length;
@@ -192,7 +209,9 @@ function CellForm({ unitSize, padLen, onAdd, onCancel }: CellFormProps) {
   const handleAdd = () => {
     const addrTrimmed = address.trim() || '0x' + '0'.repeat(padLen);
     if (type === 'field') {
-      onAdd({ type, address: addrTrimmed, fieldName: fieldName.trim() || 'field', fieldSize });
+      const sz = typeof fieldSize === 'number' && fieldSize > 0 ? fieldSize : 0;
+      if (sz <= 0) { setSizeError(true); return; }
+      onAdd({ type, address: addrTrimmed, fieldName: fieldName.trim() || 'field', fieldSize: sz });
     } else {
       onAdd({ type, address: addrTrimmed, value });
     }
@@ -205,7 +224,7 @@ function CellForm({ unitSize, padLen, onAdd, onCancel }: CellFormProps) {
         {(['hex', 'text', 'field'] as MemoryCellType[]).map((t) => (
           <button
             key={t}
-            onClick={() => setType(t)}
+            onClick={() => { setType(t); setSizeError(false); }}
             className={`flex-1 rounded border py-0.5 text-[10px] font-semibold uppercase transition-all ${
               type === t
                 ? 'border-orange-500 bg-orange-900/40 text-orange-300'
@@ -219,7 +238,7 @@ function CellForm({ unitSize, padLen, onAdd, onCancel }: CellFormProps) {
 
       {/* Address */}
       <div className="mb-1 flex items-center gap-1">
-        <span className="w-14 shrink-0 text-[10px] text-gray-400">Address</span>
+        <span className="w-16 shrink-0 text-[10px] text-gray-400">Address</span>
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
@@ -231,28 +250,40 @@ function CellForm({ unitSize, padLen, onAdd, onCancel }: CellFormProps) {
       {type === 'field' ? (
         <>
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-14 shrink-0 text-[10px] text-gray-400">Name</span>
+            <span className="w-16 shrink-0 text-[10px] text-gray-400">Name</span>
             <input
               value={fieldName}
               onChange={(e) => setFieldName(e.target.value)}
-              placeholder="field name"
+              placeholder="int variable"
               className="flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-0.5 text-[10px] text-white focus:outline-none"
             />
           </div>
-          <div className="mb-2 flex items-center gap-1">
-            <span className="w-14 shrink-0 text-[10px] text-gray-400">Size (B)</span>
+          <div className="mb-1 flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px]">
+              <span className="text-gray-400">Size (B)</span>
+              <span className="ml-0.5 text-red-400">*</span>
+            </span>
             <input
               type="number"
               min={1}
               value={fieldSize}
-              onChange={(e) => setFieldSize(parseInt(e.target.value, 10) || 1)}
-              className="flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-0.5 text-[10px] text-white focus:outline-none"
+              onChange={(e) => {
+                setSizeError(false);
+                const v = parseInt(e.target.value, 10);
+                setFieldSize(isNaN(v) ? '' : v);
+              }}
+              className={`flex-1 rounded border bg-gray-700 px-2 py-0.5 text-[10px] text-white focus:outline-none ${
+                sizeError ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-600'
+              }`}
             />
           </div>
+          {sizeError && (
+            <p className="mb-1 text-[10px] text-red-400">Size must be ≥ 1 byte.</p>
+          )}
         </>
       ) : (
-        <div className="mb-2 flex items-center gap-1">
-          <span className="w-14 shrink-0 text-[10px] text-gray-400">
+        <div className="mb-1 flex items-center gap-1">
+          <span className="w-16 shrink-0 text-[10px] text-gray-400">
             {type === 'hex' ? 'Hex bytes' : 'Text'}
           </span>
           <input
@@ -264,7 +295,6 @@ function CellForm({ unitSize, padLen, onAdd, onCancel }: CellFormProps) {
         </div>
       )}
 
-      {/* Computed size hint */}
       {computedSize > 0 && (
         <p className="mb-1 text-right text-[10px] text-gray-500">
           {computedSize} byte{computedSize !== 1 ? 's' : ''} consumed
@@ -315,7 +345,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
 
   const byteMap = buildByteMap(cells);
 
-  // Build field colour index map (stable ordering by insertion)
+  // Stable field colour index (by insertion order)
   const fieldColorMap = new Map<string, number>();
   let fieldColorCounter = 0;
   for (const c of cells) {
@@ -325,11 +355,11 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
     }
   }
 
-  // Compute Y positions for each visible row (for handle placement)
+  // Y positions for handles (one per visible row)
   let yOffset = 0;
   const rowPositions: { addr: number; label: string; top: number }[] = [];
   for (const item of rowItems) {
-    if (item === '...') {
+    if ('ellipsis' in item) {
       yOffset += ELLIPSIS_H;
     } else {
       rowPositions.push({ ...item, top: CONTENT_START + yOffset + ROW_H / 2 });
@@ -346,15 +376,12 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
     updateNodeData(id, { cells: cells.filter((c) => c.id !== cellId) });
   };
 
-  // ── Render a single byte cell in the hex table ─────────────────
-  const renderByteCell = (byteAddr: number) => {
+  // ── Render one byte cell in the hex area ───────────────────────
+  const renderByteCell = (byteAddr: number, rowAddr: number) => {
     const ann = byteMap.get(byteAddr);
     if (!ann) {
       return (
-        <span
-          key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-[9px] text-gray-700"
-        >
+        <span key={byteAddr} className="inline-block w-[18px] text-center font-mono text-[9px] text-gray-700">
           --
         </span>
       );
@@ -377,79 +404,106 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
         <span
           key={byteAddr}
           className="inline-block w-[18px] text-center font-mono text-[9px] text-cyan-300"
-          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, '0')} (text)`}
+          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, '0')} (text "${ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : '.'}")`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, '0')}
         </span>
       );
     }
 
-    // field type
+    // ── field type: draw a rectangle using CSS borders ─────────
     const col = FIELD_COLORS[fieldColorMap.get(ann.cellId) ?? 0];
+    const fieldStart = ann.fieldStartAddr ?? 0;
+    const fieldEnd = ann.fieldEndAddr ?? byteAddr + 1;
+
+    // Is this byte at the top edge of the field?
+    const isTopEdge = fieldStart >= rowAddr && fieldStart < rowAddr + unitSize;
+    // Is this byte at the bottom edge?
+    const isBottomEdge = (fieldEnd - 1) >= rowAddr && (fieldEnd - 1) < rowAddr + unitSize;
+    // Is this byte the leftmost in the field within this row?
+    const isLeftEdge = byteAddr === Math.max(fieldStart, rowAddr);
+    // Is this byte the rightmost in the field within this row?
+    const isRightEdge = byteAddr === Math.min(fieldEnd - 1, rowAddr + unitSize - 1);
+
+    const borderT = isTopEdge ? 'border-t-2' : '';
+    const borderB = isBottomEdge ? 'border-b-2' : '';
+    const borderL = isLeftEdge ? 'border-l-2' : '';
+    const borderR = isRightEdge ? 'border-r-2' : '';
+
     return (
       <span
         key={byteAddr}
-        className={`inline-block w-[18px] rounded-sm text-center font-mono text-[9px] ${col.bg} ${col.text}`}
-        title={ann.fieldName ?? 'field'}
+        className={`inline-block w-[18px] text-center font-mono text-[9px] ${col.bg} ${col.text} ${col.border} ${borderT} ${borderB} ${borderL} ${borderR}`}
+        title={`${ann.fieldName ?? 'field'} +${byteAddr - fieldStart}`}
       >
         {ann.isFirst ? '▶' : '─'}
       </span>
     );
   };
 
-  // ── Render the ASCII/annotation column for a row ───────────────
+  // ── Render annotation column (right of │) ─────────────────────
   const renderRowAnnotation = (rowAddr: number) => {
-    // Collect field annotations that start in this row
-    const fieldStarts: { name: string; colorIdx: number }[] = [];
-    for (let i = 0; i < unitSize; i++) {
-      const ann = byteMap.get(rowAddr + i);
-      if (ann?.type === 'field' && ann.isFirst) {
-        fieldStarts.push({
-          name: ann.fieldName ?? 'field',
-          colorIdx: fieldColorMap.get(ann.cellId) ?? 0,
-        });
-      }
-    }
+    // Find all field cells that overlap this row
+    const overlapping = cells.filter((c) => {
+      if (c.type !== 'field') return false;
+      const s = parseHexAddr(c.address);
+      const e = s + (c.fieldSize ?? 1);
+      return s < rowAddr + unitSize && e > rowAddr;
+    });
 
-    if (fieldStarts.length > 0) {
+    if (overlapping.length > 0) {
       return (
-        <span className="flex flex-wrap gap-0.5">
-          {fieldStarts.map((f, i) => {
-            const col = FIELD_COLORS[f.colorIdx];
+        <div className="flex min-w-0 w-full flex-col gap-px">
+          {overlapping.map((c) => {
+            const s = parseHexAddr(c.address);
+            const e = s + (c.fieldSize ?? 1);
+            const isFirstRow = s >= rowAddr && s < rowAddr + unitSize;
+            const isLastRow = (e - 1) >= rowAddr && (e - 1) < rowAddr + unitSize;
+            const col = FIELD_COLORS[fieldColorMap.get(c.id) ?? 0];
+
             return (
-              <span
-                key={i}
-                className={`rounded px-1 text-[9px] font-semibold ${col.bg} ${col.text}`}
+              <div
+                key={c.id}
+                className={[
+                  'flex flex-1 items-center overflow-hidden px-1',
+                  'border-l-2 border-r-2',
+                  col.border,
+                  isFirstRow ? 'border-t-2' : '',
+                  isLastRow ? 'border-b-2' : '',
+                  isFirstRow && isLastRow ? 'rounded-sm' : isFirstRow ? 'rounded-t-sm' : isLastRow ? 'rounded-b-sm' : /* middle */ '',
+                ].join(' ')}
+                style={{ minHeight: ROW_H - 2 }}
+                title={`${c.fieldName} (${c.fieldSize}B @ ${c.address})`}
               >
-                {f.name}
-              </span>
+                {isFirstRow && (
+                  <span className={`truncate text-[9px] font-semibold ${col.text}`}>
+                    {c.fieldName}
+                  </span>
+                )}
+              </div>
             );
           })}
-        </span>
+        </div>
       );
     }
 
-    // ASCII representation (like xxd) for hex/text bytes
+    // ASCII for hex/text
     let ascii = '';
     for (let i = 0; i < unitSize; i++) {
       const ann = byteMap.get(rowAddr + i);
       if (!ann) {
         ascii += '.';
       } else if (ann.type === 'hex' || ann.type === 'text') {
-        const ch = ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : '.';
-        ascii += ch;
+        ascii += ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : '.';
       } else {
         ascii += '·';
       }
     }
-    // Only show if non-trivially empty
     if (ascii.replace(/\./g, '') === '') return null;
-    return (
-      <span className="font-mono text-[9px] text-gray-400">{ascii}</span>
-    );
+    return <span className="font-mono text-[9px] text-gray-400">{ascii}</span>;
   };
 
-  // ── Node width based on unitSize ───────────────────────────────
+  // ── Node width ─────────────────────────────────────────────────
   const viewMinWidth = ADDR_COL_W + GAP_W + unitSize * BYTE_CELL_W + GAP_W + ANNOTATION_COL_W;
 
   return (
@@ -459,7 +513,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
       }`}
       style={{ minWidth: isEditing ? Math.max(340, viewMinWidth) : viewMinWidth, position: 'relative' }}
     >
-      {/* Left handles (target) — one per visible row */}
+      {/* Left handles */}
       {rowPositions.map(({ label, top }) => (
         <Handle
           key={`addr-${label}-L`}
@@ -469,8 +523,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
           style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
         />
       ))}
-
-      {/* Right handles (source) — one per visible row */}
+      {/* Right handles */}
       {rowPositions.map(({ label, top }) => (
         <Handle
           key={`addr-${label}-R`}
@@ -490,11 +543,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
         <button
           className="shrink-0 text-orange-200 hover:text-white"
           title={isEditing ? 'Done editing' : 'Edit content'}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsEditing((v) => !v);
-            setShowForm(false);
-          }}
+          onClick={(e) => { e.stopPropagation(); setIsEditing((v) => !v); setShowForm(false); }}
         >
           {isEditing ? <Check size={13} /> : <Edit2 size={13} />}
         </button>
@@ -517,20 +566,17 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
         )}
 
         {rowItems.map((item, idx) => {
-          if (item === '...') {
+          if ('ellipsis' in item) {
             return (
               <div
                 key={`ellipsis-${idx}`}
-                className="flex items-center gap-2 px-2"
+                className="flex items-center gap-2 border-y border-gray-700 bg-gray-900/40 px-2"
                 style={{ height: ELLIPSIS_H }}
               >
                 <span className="font-mono text-[9px] text-gray-500">···</span>
-                {isAutoCollapsed && (
-                  <span className="text-[9px] italic text-gray-600">
-                    ({fmtHex(base + MEMORY_LINES * unitSize, padLen)} –{' '}
-                    {fmtHex(end - MEMORY_LINES * unitSize, padLen)})
-                  </span>
-                )}
+                <span className="text-[9px] italic text-gray-600">
+                  ({fmtHex(item.fromAddr, padLen)} – {fmtHex(item.toAddr, padLen)})
+                </span>
               </div>
             );
           }
@@ -545,36 +591,25 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
               <span className="w-[60px] shrink-0 font-mono text-[9px] text-green-400">
                 {item.label}
               </span>
-
-              {/* Separator */}
-              <span className="mx-1 text-gray-700 text-[9px]">│</span>
-
+              <span className="mx-0.5 text-[9px] text-gray-700">│</span>
               {/* Byte cells */}
-              <div className="flex shrink-0 gap-0.5">
-                {Array.from({ length: unitSize }, (_, i) => renderByteCell(item.addr + i))}
+              <div className="flex shrink-0 gap-px">
+                {Array.from({ length: unitSize }, (_, i) => renderByteCell(item.addr + i, item.addr))}
               </div>
-
-              {/* Separator */}
-              <span className="mx-1 text-gray-700 text-[9px]">│</span>
-
+              <span className="mx-0.5 text-[9px] text-gray-700">│</span>
               {/* Annotation */}
-              <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center overflow-hidden" style={{ height: ROW_H }}>
                 {renderRowAnnotation(item.addr)}
               </div>
-
               {/* Delete button (edit mode) */}
               {isEditing && (() => {
-                // Find cell(s) starting in this row
                 const startingCell = cells.find((c) => {
                   const a = parseHexAddr(c.address);
                   return a >= item.addr && a < item.addr + unitSize;
                 });
                 return startingCell ? (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeCell(startingCell.id);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); removeCell(startingCell.id); }}
                     className="ml-1 shrink-0 text-gray-600 hover:text-red-400"
                   >
                     <Trash2 size={9} />
