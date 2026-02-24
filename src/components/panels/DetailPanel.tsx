@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import MonacoEditor from '@monaco-editor/react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import type {
@@ -15,16 +14,6 @@ import { v4 } from '../../utils/uuid';
 import { findEllipsisIndices } from '../../utils/code';
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go'];
-
-const MONACO_LANG: Record<SourceLanguage, string> = {
-  c: 'c',
-  cpp: 'cpp',
-  python: 'python',
-  javascript: 'javascript',
-  typescript: 'typescript',
-  rust: 'rust',
-  go: 'go',
-};
 
 export default function DetailPanel() {
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
@@ -83,23 +72,9 @@ export default function DetailPanel() {
             ))}
           </select>
         </div>
-        {/* Monaco editor */}
-        <div className="overflow-hidden rounded border border-gray-600" style={{ height: 320 }}>
-          <MonacoEditor
-            height="100%"
-            language={MONACO_LANG[data.language]}
-            theme="vs-dark"
-            value={data.code}
-            onChange={(val) => updateNodeData(node.id, { code: val ?? '' })}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 12,
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-            }}
-          />
-        </div>
+        <p className="text-[11px] text-gray-500">
+          Open the inline editor (✎ button on the node) to edit code with syntax highlighting.
+        </p>
         {/* Collapsed line map — one input per "..." marker */}
         {ellipsisIndices.length > 0 && (
           <div>
