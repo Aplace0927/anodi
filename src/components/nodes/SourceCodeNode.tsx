@@ -98,7 +98,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
       className={`rounded-lg border-2 bg-gray-900 text-white shadow-lg transition-all ${
         selected ? 'border-blue-400 shadow-blue-400/40 shadow-lg' : 'border-gray-600'
       }`}
-      style={{ minWidth: isEditing ? 480 : 280 }}
+      style={{ minWidth: isEditing ? 480 : 280, position: 'relative' }}
     >
       {/* Left handles (target) — one per visible line */}
       {linePositions.map(({ num, top }) => (
