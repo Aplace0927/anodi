@@ -18,6 +18,7 @@ import Toolbar from './components/Toolbar';
 import DetailPanel from './components/panels/DetailPanel';
 import SearchPanel from './components/panels/SearchPanel';
 import { searchNodes } from './utils/search';
+import { useTheme } from './hooks/useTheme';
 import type { AnodiNode, AnodiEdge } from './types';
 
 const nodeTypes = {
@@ -31,6 +32,7 @@ const edgeTypes = {
 };
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
@@ -108,8 +110,8 @@ export default function App() {
   }, [selectNode]);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-950">
-      <Toolbar />
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
+      <Toolbar theme={theme} toggleTheme={toggleTheme} />
 
       <div className="relative flex flex-1 overflow-hidden" style={{ marginTop: 48 }}>
         {/* Canvas */}
@@ -129,10 +131,10 @@ export default function App() {
             minZoom={0.1}
             maxZoom={4}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#374151" />
-            <Controls className="!border-gray-700 !bg-gray-800 !text-white" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={theme === 'dark' ? '#374151' : '#d1d5db'} />
+            <Controls className={theme === 'dark' ? '!border-gray-700 !bg-gray-800 !text-white' : '!border-gray-300 !bg-white !text-gray-700'} />
             <MiniMap
-              className="!border-gray-700 !bg-gray-800"
+              className={theme === 'dark' ? '!border-gray-700 !bg-gray-800' : '!border-gray-300 !bg-gray-100'}
               nodeColor={(n) => {
                 const d = n.data as { kind?: string };
                 if (d.kind === 'source') return '#6366f1';

@@ -12,14 +12,14 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
 
   return (
     <div
-      className={`w-52 rounded-lg border-2 bg-white shadow-lg transition-all ${
+      className={`w-52 rounded-lg border-2 bg-white shadow-lg transition-all dark:bg-gray-900 ${
         selected
           ? customColor
             ? 'shadow-lg'
             : 'border-purple-500 shadow-purple-400/30 shadow-lg'
           : customColor
             ? ''
-            : 'border-gray-300'
+            : 'border-gray-300 dark:border-gray-600'
       }`}
       style={
         customColor
@@ -53,10 +53,10 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
 
       {/* Fields */}
       {data.fields.length > 0 && (
-        <div className="mx-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1">
+        <div className="mx-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
           {data.fields.map((f) => (
-            <div key={f.id} className="truncate text-[10px] text-gray-700">
-              <span className="text-blue-600">{f.type}</span> {f.name}
+            <div key={f.id} className="truncate text-[10px] text-gray-700 dark:text-gray-300">
+              <span className="text-blue-600 dark:text-blue-400">{f.type}</span> {f.name}
             </div>
           ))}
         </div>
@@ -64,10 +64,10 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
 
       {/* Methods */}
       {data.methods.length > 0 && (
-        <div className="mx-2 mb-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1">
+        <div className="mx-2 mb-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
           {data.methods.map((m) => (
-            <div key={m.id} className="truncate text-[10px] text-gray-700">
-              <span className="text-green-700">⚙ </span>
+            <div key={m.id} className="truncate text-[10px] text-gray-700 dark:text-gray-300">
+              <span className="text-green-700 dark:text-green-500">⚙ </span>
               {m.signature}
             </div>
           ))}

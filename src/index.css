@@ -11,6 +11,6 @@ body,
 }
 
 /* React Flow override – keep dark feel */
-.react-flow__attribution {
+.dark .react-flow__attribution {
   background: transparent !important;
 }
