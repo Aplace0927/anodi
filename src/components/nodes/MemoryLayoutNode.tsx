@@ -396,7 +396,7 @@ function CellForm({
             }}
             className={`flex-1 rounded border py-0.5 text-[10px] font-semibold uppercase transition-all ${
               type === t
-                ? "border-orange-500 bg-orange-900/40 text-orange-300"
+                ? "border-orange-500 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
                 : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400"
             } ${cellToEdit ? "cursor-not-allowed opacity-60" : "hover:border-gray-500"}`}
             disabled={!!cellToEdit}
@@ -479,7 +479,7 @@ function CellForm({
                   onClick={() => setIntegerSize(s)}
                   className={`flex-1 rounded border py-0.5 text-[10px] font-semibold transition-all ${
                     integerSize === s
-                      ? "border-green-500 bg-green-900/40 text-green-300"
+                      ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
                       : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
                   }`}
                 >
@@ -499,7 +499,7 @@ function CellForm({
                   onClick={() => setEndianness(e)}
                   className={`flex-1 rounded border py-0.5 text-[10px] font-semibold transition-all ${
                     endianness === e
-                      ? "border-green-500 bg-green-900/40 text-green-300"
+                      ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
                       : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
                   }`}
                 >

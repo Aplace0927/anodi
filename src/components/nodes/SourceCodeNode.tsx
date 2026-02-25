@@ -8,7 +8,9 @@ import { ELLIPSIS_MARKER, findEllipsisIndices } from '../../utils/code';
 import { useGraphStore } from '../../store/graphStore';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { contrastTextColor } from '../ColorPicker';
+import { useTheme } from '../../hooks/useTheme';
 
 type Props = NodeProps & { data: SourceCodeData & { name?: string } };
 
@@ -83,6 +85,7 @@ function parseLines(code: string, collapsedLineMap: number[]): LineItem[] {
 const SourceCodeNode = memo(({ id, data, selected }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
+  const { theme } = useTheme();
 
   const langColor = LANG_COLORS[data.language] ?? 'bg-gray-500';
   const items = parseLines(data.code, data.collapsedLineMap ?? []);
@@ -301,7 +304,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
                 <div className="flex-1 overflow-hidden">
                   <SyntaxHighlighter
                     language={SYNTAX_HIGHLIGHTER_LANG[data.language]}
-                    style={dracula}
+                    style={theme === 'dark' ? dracula : oneLight}
                     showLineNumbers={false}
                     wrapLines={true}
                     customStyle={{
