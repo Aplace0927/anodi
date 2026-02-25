@@ -12,6 +12,7 @@ import type {
 import { EDGE_STYLES } from '../../types';
 import { v4 } from '../../utils/uuid';
 import { findEllipsisIndices } from '../../utils/code';
+import ColorPicker from '../ColorPicker';
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
 
@@ -345,6 +346,15 @@ export default function DetailPanel() {
           value={data.name ?? ''}
           onChange={(e) => updateNodeName(node.id, e.target.value)}
           className="w-full rounded border border-gray-600 bg-gray-700 px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </div>
+
+      {/* Node color */}
+      <div className="border-b border-gray-700 px-4 py-3">
+        <ColorPicker
+          label="Node Color"
+          value={data.nodeColor}
+          onChange={(color) => updateNodeData(node.id, { nodeColor: color })}
         />
       </div>
 

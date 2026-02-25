@@ -86,6 +86,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
   const langColor = LANG_COLORS[data.language] ?? 'bg-gray-500';
   const items = parseLines(data.code, data.collapsedLineMap ?? []);
   const ellipsisIndices = findEllipsisIndices(data.code || '');
+  const customColor = data.nodeColor;
 
   // Compute cumulative Y positions for each visible line (for handle placement)
   let yOffset = 0;
@@ -113,9 +114,24 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
   return (
     <div
       className={`rounded-lg border-2 bg-gray-900 text-white shadow-lg transition-all ${
-        selected ? 'border-blue-400 shadow-blue-400/40 shadow-lg' : 'border-gray-600'
+        selected
+          ? customColor
+            ? 'shadow-lg'
+            : 'border-blue-400 shadow-blue-400/40 shadow-lg'
+          : customColor
+            ? ''
+            : 'border-gray-600'
       }`}
-      style={{ minWidth: isEditing ? 480 : 280, position: 'relative' }}
+      style={{
+        minWidth: isEditing ? 480 : 280,
+        position: 'relative',
+        ...(customColor
+          ? {
+              borderColor: selected ? customColor : `${customColor}99`,
+              boxShadow: selected ? `0 10px 15px -3px ${customColor}40` : undefined,
+            }
+          : {}),
+      }}
     >
       {/* Left handles (target) — one per visible line */}
       {isEditing ? null : linePositions.map(({ num, top }) => (
@@ -141,8 +157,8 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
 
       {/* Header */}
       <div
-        className="flex items-center gap-2 rounded-t-lg bg-gray-800 px-3"
-        style={{ height: HEADER_H }}
+        className={`flex items-center gap-2 rounded-t-lg px-3 ${customColor ? '' : 'bg-gray-800'}`}
+        style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <span
           className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${langColor}`}

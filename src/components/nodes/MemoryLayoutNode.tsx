@@ -289,6 +289,7 @@ function CellForm({
   const [fieldSize, setFieldSize] = useState<number | "">(unitSize);
   const [integerSize, setIntegerSize] = useState<IntegerSize>(4);
   const [endianness, setEndianness] = useState<Endianness>("little");
+  const [fieldColor, setFieldColor] = useState<string | undefined>(undefined);
   const [sizeError, setSizeError] = useState(false);
   const [overlapError, setOverlapError] = useState(false);
   const [intValueError, setIntValueError] = useState(false);
@@ -302,6 +303,7 @@ function CellForm({
       setFieldSize(cellToEdit.fieldSize ?? "");
       setIntegerSize(cellToEdit.integerSize ?? 4);
       setEndianness(cellToEdit.endianness ?? "little");
+      setFieldColor(cellToEdit.fieldColor);
     }
   }, [cellToEdit]);
 
@@ -336,6 +338,7 @@ function CellForm({
         address: normalizedAddress,
         fieldName: fieldName.trim() || "field",
         fieldSize: sz,
+        fieldColor,
       };
     } else if (type === "integer") {
       // Validate integer value
@@ -452,6 +455,30 @@ function CellForm({
               Size must be ≥ 1 byte.
             </p>
           )}
+          <div className="mb-1 flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px] text-gray-400">
+              Color
+            </span>
+            <div className="flex flex-1 items-center gap-1">
+              <input
+                type="color"
+                value={fieldColor || '#3b82f6'}
+                onChange={(e) => setFieldColor(e.target.value)}
+                className="h-5 w-5 cursor-pointer rounded border border-gray-600 bg-transparent"
+              />
+              {fieldColor && (
+                <button
+                  onClick={() => setFieldColor(undefined)}
+                  className="text-[10px] text-gray-500 hover:text-red-400"
+                >
+                  Clear
+                </button>
+              )}
+              {!fieldColor && (
+                <span className="text-[10px] text-gray-500">Default</span>
+              )}
+            </div>
+          </div>
         </>
       ) : type === "integer" ? (
         <>
@@ -583,6 +610,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
   const cells: MemoryCell[] = data.cells ?? [];
   const base = parseHexAddr(data.baseAddress ?? "0x0000");
   const end = parseHexAddr(data.endAddress ?? "0x0000");
+  const customColor = data.nodeColor;
   const padLen = Math.max(4, end.toString(16).length);
   const viewMinWidth =
     ADDR_COL_W + GAP_W + unitSize * BYTE_CELL_W + GAP_W + ANNOTATION_COL_W;
@@ -697,12 +725,31 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
 
     // ── field type: draw a "long line" style border ─────────
 
+    const cell = cells.find((c) => c.id === ann.cellId);
+    const customFieldColor = cell?.fieldColor;
     const col = FIELD_COLORS[fieldColorMap.get(ann.cellId) ?? 0];
     const fieldStart = ann.fieldStartAddr ?? 0;
     const borderT = "border-t-2";
     const borderB = "border-b-2";
     const borderL = ann.isFirst ? "border-l-2" : "";
     const borderR = ann.isLast ? "border-r-2" : "";
+
+    if (customFieldColor) {
+      return (
+        <span
+          key={byteAddr}
+          className={`inline-block w-[18px] h-[18px] text-center font-mono text-[9px] ${borderT} ${borderB} ${borderL} ${borderR}`}
+          style={{
+            backgroundColor: `${customFieldColor}33`,
+            color: customFieldColor,
+            borderColor: customFieldColor,
+          }}
+          title={`${ann.fieldName ?? "field"} (+${byteAddr - fieldStart})`}
+        >
+          {ann.isFirst ? "▶" : ""}
+        </span>
+      );
+    }
 
     return (
       <span
@@ -777,6 +824,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
             const e = s + (cell.fieldSize ?? 1);
 
             const col = FIELD_COLORS[fieldColorMap.get(cell.id) ?? 0];
+            const customFieldColor = cell.fieldColor;
             const fieldName = cell.fieldName ?? "field";
 
             const title = `${fieldName} (${cell.fieldSize}B @ ${cell.address}, offset ${s - base})`;
@@ -796,6 +844,36 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
               e - 1 >= seg.startAddr && e - 1 < seg.startAddr + seg.length
                 ? "border-r-2"
                 : "";
+
+            if (customFieldColor) {
+              return (
+                <div
+                  key={i}
+                  className={[
+                    "flex items-center overflow-hidden px-1",
+                    borderT,
+                    borderB,
+                    borderL,
+                    borderR,
+                  ].join(" ")}
+                  style={{
+                    width: `${(seg.length / unitSize) * 100}%`,
+                    borderColor: customFieldColor,
+                  }}
+                  title={title}
+                >
+                  {s >= rowAddr &&
+                    s < rowEndAddr && (
+                      <span
+                        className="w-full truncate text-center text-[9px] font-semibold"
+                        style={{ color: customFieldColor }}
+                      >
+                        {cell.fieldName}
+                      </span>
+                    )}
+                </div>
+              );
+            }
 
             return (
               <div
@@ -854,12 +932,22 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
     <div
       className={`rounded-lg border-2 bg-gray-950 text-white shadow-lg transition-all ${
         selected
-          ? "border-orange-400 shadow-orange-400/30 shadow-lg"
-          : "border-gray-700"
+          ? customColor
+            ? "shadow-lg"
+            : "border-orange-400 shadow-orange-400/30 shadow-lg"
+          : customColor
+            ? ""
+            : "border-gray-700"
       }`}
       style={{
         minWidth: isEditing ? Math.max(340, viewMinWidth) : viewMinWidth,
         position: "relative",
+        ...(customColor
+          ? {
+              borderColor: selected ? customColor : `${customColor}99`,
+              boxShadow: selected ? `0 10px 15px -3px ${customColor}40` : undefined,
+            }
+          : {}),
       }}
     >
       {/* Left handles */}
@@ -901,8 +989,8 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
       {/* Header */}
 
       <div
-        className="flex items-center rounded-t-lg bg-orange-800 px-3"
-        style={{ height: HEADER_H }}
+        className={`flex items-center rounded-t-lg px-3 ${customColor ? '' : 'bg-orange-800'}`}
+        style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <div className="flex-1 overflow-hidden">
           <div className="text-[10px] text-orange-200">memory layout</div>

@@ -19,6 +19,7 @@ export interface SourceCodeData extends Record<string, unknown> {
   // For each "..." line in code (0-indexed occurrence), the starting line number of the next section.
   collapsedLineMap: number[];
   name?: string;
+  nodeColor?: string; // custom color for the node header/border
 }
 
 export interface ClassField {
@@ -38,6 +39,7 @@ export interface ClassDiagramData extends Record<string, unknown> {
   fields: ClassField[];
   methods: ClassMethod[];
   name?: string;
+  nodeColor?: string; // custom color for the node header/border
 }
 
 export type MemoryUnitSize = 4 | 8 | 16;
@@ -71,6 +73,7 @@ export interface MemoryCell {
   fieldSize?: number;   // for field type: size in bytes
   integerSize?: IntegerSize;  // for integer type: byte width (1, 2, 4, 8)
   endianness?: Endianness;    // for integer type: byte order
+  fieldColor?: string;  // custom color for field styling
 }
 
 export interface MemoryLayoutData extends Record<string, unknown> {
@@ -81,6 +84,7 @@ export interface MemoryLayoutData extends Record<string, unknown> {
   collapsedRanges: MemoryCollapsedRange[];
   cells?: MemoryCell[];     // user-provided content annotations
   name?: string;
+  nodeColor?: string; // custom color for the node header/border
 }
 
 export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData;
