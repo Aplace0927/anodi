@@ -13,7 +13,7 @@ import { EDGE_STYLES } from '../../types';
 import { v4 } from '../../utils/uuid';
 import { findEllipsisIndices } from '../../utils/code';
 
-const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go'];
+const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
 
 export default function DetailPanel() {
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);

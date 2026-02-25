@@ -6,6 +6,8 @@ import { Edit2, Check } from 'lucide-react';
 import type { SourceCodeData, SourceLanguage } from '../../types';
 import { ELLIPSIS_MARKER, findEllipsisIndices } from '../../utils/code';
 import { useGraphStore } from '../../store/graphStore';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 type Props = NodeProps & { data: SourceCodeData & { name?: string } };
 
@@ -17,9 +19,11 @@ const LANG_COLORS: Record<string, string> = {
   typescript: 'bg-blue-400',
   rust: 'bg-orange-600',
   go: 'bg-cyan-500',
+  'assembly (x86-64)': 'bg-gray-400',
+  'assembly (arm)': 'bg-gray-400',
 };
 
-const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go'];
+const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
 const MONACO_LANG: Record<SourceLanguage, string> = {
   c: 'c',
   cpp: 'cpp',
@@ -28,12 +32,25 @@ const MONACO_LANG: Record<SourceLanguage, string> = {
   typescript: 'typescript',
   rust: 'rust',
   go: 'go',
+  'assembly (x86-64)': 'nasm', // Fallback for basic highlighting
+  'assembly (arm)': 'arm-asm',
+};
+
+const SYNTAX_HIGHLIGHTER_LANG: Record<SourceLanguage, string> = {
+  c: 'c',
+  cpp: 'cpp',
+  python: 'python',
+  javascript: 'javascript',
+  typescript: 'typescript',
+  rust: 'rust',
+  go: 'go',
+  'assembly (x86-64)': 'nasm',
+  'assembly (arm)': 'arm-asm',
 };
 
 // Fixed pixel heights (must match the JSX inline styles below)
 const HEADER_H = 40;
-const BADGE_H = 24;
-const CONTENT_START = HEADER_H + BADGE_H; // = 64
+const CONTENT_START = HEADER_H;
 const LINE_H = 20;
 const ELLIPSIS_H = 16;
 
@@ -101,7 +118,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
       style={{ minWidth: isEditing ? 480 : 280, position: 'relative' }}
     >
       {/* Left handles (target) — one per visible line */}
-      {linePositions.map(({ num, top }) => (
+      {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
           key={`line-${num}-L`}
           type="target"
@@ -112,7 +129,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
       ))}
 
       {/* Right handles (source) — one per visible line */}
-      {linePositions.map(({ num, top }) => (
+      {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
           key={`line-${num}-R`}
           type="source"
@@ -147,17 +164,10 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
         </button>
       </div>
 
-      {/* Badge */}
-      <div className="flex items-center px-3" style={{ height: BADGE_H }}>
-        <span className="rounded bg-indigo-900/60 px-2 py-0.5 text-[10px] text-indigo-300">
-          source code
-        </span>
-      </div>
-
       {isEditing ? (
         /* ── Edit mode: inline Monaco editor ─────────────────────── */
         <div
-          className="nodrag nopan nowheel mx-1 mb-2 flex flex-col gap-2"
+          className="nodrag nopan nowheel mx-1 my-2 flex flex-col gap-2"
           onKeyDown={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
         >
@@ -266,9 +276,31 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
                 <span className="w-8 shrink-0 select-none text-right font-mono text-[9px] text-gray-500">
                   {item.num}
                 </span>
-                <span className="flex-1 overflow-hidden whitespace-pre font-mono text-[10px] text-green-300">
-                  {item.content}
-                </span>
+                <div className="flex-1 overflow-hidden">
+                  <SyntaxHighlighter
+                    language={SYNTAX_HIGHLIGHTER_LANG[data.language]}
+                    style={dracula}
+                    showLineNumbers={false}
+                    wrapLines={true}
+                    customStyle={{
+                      backgroundColor: 'transparent',
+                      margin: '0',
+                      lineHeight: '1',
+                      fontSize: '10px',
+                      background: 'transparent'
+                    }}
+                    codeTagProps={{
+                      style: {
+                        fontFamily: 'monospace',
+                        fontSize: '10px',
+                        lineHeight: '1',
+                        background: 'transparent'
+                      },
+                    }}
+                  >
+                    {item.content}
+                  </SyntaxHighlighter>
+                </div>
               </div>
             );
           })}

@@ -7,13 +7,13 @@ interface Props {
   onClose: () => void;
 }
 
-const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go'];
+const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
 
 export default function AddNodeDialog({ onClose }: Props) {
   const addNode = useGraphStore((s) => s.addNode);
   const [nodeType, setNodeType] = useState<'source' | 'class' | 'memory'>('source');
   const [name, setName] = useState('');
-  const [lang, setLang] = useState<SourceLanguage>('python');
+  const [lang, setLang] = useState<SourceLanguage>('c');
   const [baseAddress, setBaseAddress] = useState('0x0000');
   const [endAddress, setEndAddress] = useState('0x0100');
   const [unitSize, setUnitSize] = useState<MemoryUnitSize>(8);

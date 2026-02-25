@@ -7,7 +7,9 @@ export type SourceLanguage =
   | 'javascript'
   | 'typescript'
   | 'rust'
-  | 'go';
+  | 'go'
+  | 'assembly (x86-64)'
+  | 'assembly (arm)';
 
 // Each interface extends Record<string, unknown> so it satisfies @xyflow/react's constraint.
 export interface SourceCodeData extends Record<string, unknown> {
@@ -79,7 +81,7 @@ export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData;
 
 // ── Edge types ───────────────────────────────────────────────────
 
-export type EdgeRelationship = 'call' | 'reference' | 'sharedVariable';
+export type EdgeRelationship = 'call' | 'reference' | 'information';
 
 export interface AnodiEdgeData extends Record<string, unknown> {
   relationship: EdgeRelationship;
@@ -100,8 +102,8 @@ export const EDGE_STYLES: Record<
 > = {
   call: { label: 'Call', color: '#3b82f6' },
   reference: { label: 'Reference', color: '#22c55e', strokeDasharray: '6 3' },
-  sharedVariable: {
-    label: 'Shared Variable',
+  information: {
+    label: 'Information',
     color: '#f97316',
     strokeDasharray: '2 4',
   },

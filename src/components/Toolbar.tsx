@@ -5,7 +5,7 @@ import type { EdgeRelationship } from '../types';
 import { EDGE_STYLES } from '../types';
 import AddNodeDialog from './dialogs/AddNodeDialog';
 
-const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'sharedVariable'];
+const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
 
 export default function Toolbar() {
   const [showAddNode, setShowAddNode] = useState(false);
