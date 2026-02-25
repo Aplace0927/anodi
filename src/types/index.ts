@@ -49,22 +49,28 @@ export interface MemoryCollapsedRange {
 }
 
 /** Type of user-provided content attached to a memory address. */
-export type MemoryCellType = 'hex' | 'text' | 'field';
+export type MemoryCellType = 'hex' | 'text' | 'field' | 'integer';
+
+export type IntegerSize = 1 | 2 | 4 | 8;
+export type Endianness = 'little' | 'big';
 
 /**
  * A user annotation attached to a specific memory address inside a MemoryLayoutNode.
  *
- * - `hex`   – raw bytes shown as "41 42 43 00"
- * - `text`  – plain string shown as "Hello"
- * - `field` – named field spanning `fieldSize` bytes (e.g. `int size`)
+ * - `hex`     – raw bytes shown as "41 42 43 00"
+ * - `text`    – plain string shown as "Hello"
+ * - `field`   – named field spanning `fieldSize` bytes (e.g. `int size`)
+ * - `integer` – integer value rendered as individual bytes (1/2/4/8 bytes, little/big endian)
  */
 export interface MemoryCell {
   id: string;
   type: MemoryCellType;
   address: string;      // hex string, e.g. "0x4010"
-  value?: string;       // for hex / text types
+  value?: string;       // for hex / text / integer types
   fieldName?: string;   // for field type: name of the field
   fieldSize?: number;   // for field type: size in bytes
+  integerSize?: IntegerSize;  // for integer type: byte width (1, 2, 4, 8)
+  endianness?: Endianness;    // for integer type: byte order
 }
 
 export interface MemoryLayoutData extends Record<string, unknown> {
