@@ -8,6 +8,7 @@ import { ELLIPSIS_MARKER, findEllipsisIndices } from '../../utils/code';
 import { useGraphStore } from '../../store/graphStore';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { contrastTextColor } from '../ColorPicker';
 
 type Props = NodeProps & { data: SourceCodeData & { name?: string } };
 
@@ -87,6 +88,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
   const items = parseLines(data.code, data.collapsedLineMap ?? []);
   const ellipsisIndices = findEllipsisIndices(data.code || '');
   const customColor = data.nodeColor;
+  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
   // Compute cumulative Y positions for each visible line (for handle placement)
   let yOffset = 0;
@@ -165,11 +167,15 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
         >
           {data.language}
         </span>
-        <span className="flex-1 truncate text-sm font-semibold text-gray-100">
+        <span
+          className={`flex-1 truncate text-sm font-semibold ${headerTextColor ? '' : 'text-gray-100'}`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
+        >
           {data.name ?? 'Untitled'}
         </span>
         <button
-          className="shrink-0 text-gray-400 hover:text-white"
+          className={`shrink-0 ${headerTextColor ? '' : 'text-gray-400'} hover:text-white`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
           title={isEditing ? 'Done editing' : 'Edit code'}
           onClick={(e) => {
             e.stopPropagation();

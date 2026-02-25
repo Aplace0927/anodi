@@ -12,7 +12,7 @@ import type {
 } from "../../types";
 import { useGraphStore } from "../../store/graphStore";
 import { v4 } from "../../utils/uuid";
-import ColorPicker from "../ColorPicker";
+import ColorPicker, { contrastTextColor } from "../ColorPicker";
 
 type Props = NodeProps & { data: MemoryLayoutData & { name?: string } };
 
@@ -597,6 +597,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
   const base = parseHexAddr(data.baseAddress ?? "0x0000");
   const end = parseHexAddr(data.endAddress ?? "0x0000");
   const customColor = data.nodeColor;
+  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
   const padLen = Math.max(4, end.toString(16).length);
   const viewMinWidth =
     ADDR_COL_W + GAP_W + unitSize * BYTE_CELL_W + GAP_W + ANNOTATION_COL_W;
@@ -979,11 +980,22 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <div className="flex-1 overflow-hidden">
-          <div className="text-[10px] text-orange-200">memory layout</div>
+          <div
+            className={`text-[10px] ${headerTextColor ? '' : 'text-orange-200'}`}
+            style={headerTextColor ? { color: headerTextColor } : undefined}
+          >
+            memory layout
+          </div>
 
-          <div className="truncate font-bold text-orange-50">
+          <div
+            className={`truncate font-bold ${headerTextColor ? '' : 'text-orange-50'}`}
+            style={headerTextColor ? { color: headerTextColor } : undefined}
+          >
             {data.name ?? "Untitled"}
-            <span className="truncate rounded px-2 py-0.5 text-[10px] text-orange-300">
+            <span
+              className={`truncate rounded px-2 py-0.5 text-[10px] ${headerTextColor ? '' : 'text-orange-300'}`}
+              style={headerTextColor ? { color: headerTextColor } : undefined}
+            >
               <span className="font-mono text-[12px]">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
               {isAutoCollapsed ? " · auto-collapsed" : " "} · {" "}
               {unitSize}B / row
@@ -992,7 +1004,8 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
         </div>
 
         <button
-          className="shrink-0 text-orange-200 hover:text-white"
+          className={`shrink-0 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
           title={isEditing ? "Done editing" : "Edit content"}
           onClick={(e) => {
             e.stopPropagation();

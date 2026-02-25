@@ -2,11 +2,13 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ClassDiagramData } from "../../types";
+import { contrastTextColor } from "../ColorPicker";
 
 type Props = NodeProps & { data: ClassDiagramData & { name?: string } };
 
 const ClassDiagramNode = memo(({ data, selected }: Props) => {
   const customColor = data.nodeColor;
+  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
   return (
     <div
@@ -35,8 +37,16 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
         className={`rounded-t-lg px-3 py-2 text-center ${customColor ? '' : 'bg-purple-700'}`}
         style={customColor ? { backgroundColor: customColor } : {}}
       >
-        <span className="block text-[10px] text-purple-200">«class»</span>
-        <span className="block truncate font-bold text-white">
+        <span
+          className={`block text-[10px] ${headerTextColor ? '' : 'text-purple-200'}`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
+        >
+          «class»
+        </span>
+        <span
+          className={`block truncate font-bold ${headerTextColor ? '' : 'text-white'}`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
+        >
           {data.className || data.name || "ClassName"}
         </span>
       </div>
