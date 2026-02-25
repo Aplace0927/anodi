@@ -7,9 +7,12 @@ import type {
   MemoryCollapsedRange,
   MemoryCell,
   MemoryCellType,
+  IntegerSize,
+  Endianness,
 } from "../../types";
 import { useGraphStore } from "../../store/graphStore";
 import { v4 } from "../../utils/uuid";
+import ColorPicker, { contrastTextColor } from "../ColorPicker";
 
 type Props = NodeProps & { data: MemoryLayoutData & { name?: string } };
 
@@ -69,10 +72,52 @@ function textToBytes(str: string): number[] {
   return Array.from(new TextEncoder().encode(str));
 }
 
+/** Parse an integer string supporting decimal, 0b (binary), 0x (hex), 0o (octal). */
+function parseIntegerValue(str: string): bigint {
+  const s = str.trim();
+  if (!s) return 0n;
+  const negative = s.startsWith("-");
+  const abs = negative ? s.slice(1).trim() : s;
+  let val: bigint;
+  if (abs.startsWith("0b") || abs.startsWith("0B")) {
+    val = BigInt("0b" + abs.slice(2));
+  } else if (abs.startsWith("0x") || abs.startsWith("0X")) {
+    val = BigInt("0x" + abs.slice(2));
+  } else if (abs.startsWith("0o") || abs.startsWith("0O")) {
+    val = BigInt("0o" + abs.slice(2));
+  } else {
+    val = BigInt(abs);
+  }
+  return negative ? -val : val;
+}
+
+/** Convert an integer to bytes with the given size and endianness. */
+function integerToBytes(
+  value: string,
+  size: IntegerSize,
+  endianness: Endianness,
+): number[] {
+  try {
+    let n = parseIntegerValue(value);
+    const mask = (1n << BigInt(size * 8)) - 1n;
+    n = n & mask; // truncate to size
+    const bytes: number[] = [];
+    for (let i = 0; i < size; i++) {
+      bytes.push(Number((n >> BigInt(i * 8)) & 0xFFn));
+    }
+    // bytes is little-endian; reverse for big-endian
+    if (endianness === "big") bytes.reverse();
+    return bytes;
+  } catch {
+    return Array(size).fill(0);
+  }
+}
+
 export function cellByteSize(
-  cell: Pick<MemoryCell, "type" | "value" | "fieldSize">,
+  cell: Pick<MemoryCell, "type" | "value" | "fieldSize" | "integerSize">,
 ): number {
   if (cell.type === "field") return cell.fieldSize ?? 1;
+  if (cell.type === "integer") return cell.integerSize ?? 4;
   if (cell.type === "hex")
     return Math.max(1, parseHexBytes(cell.value ?? "").length);
   return Math.max(1, textToBytes(cell.value ?? "").length);
@@ -82,7 +127,7 @@ export function cellByteSize(
 
 interface ByteAnnotation {
   value: number;
-  type: "hex" | "text" | "field";
+  type: "hex" | "text" | "field" | "integer";
   cellId: string;
   isFirst: boolean;
   isLast: boolean;
@@ -136,6 +181,20 @@ function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
             fieldEndAddr: startAddr + size,
           });
       }
+    } else if (cell.type === "integer") {
+      const size = cell.integerSize ?? 4;
+      const endianness = cell.endianness ?? "little";
+      const bytes = integerToBytes(cell.value ?? "0", size as IntegerSize, endianness);
+      bytes.forEach((b, i) => {
+        if (!map.has(startAddr + i))
+          map.set(startAddr + i, {
+            value: b,
+            type: "integer",
+            cellId: cell.id,
+            isFirst: i === 0,
+            isLast: i === bytes.length - 1,
+          });
+      });
     }
   }
 
@@ -229,8 +288,12 @@ function CellForm({
   const [value, setValue] = useState("");
   const [fieldName, setFieldName] = useState("");
   const [fieldSize, setFieldSize] = useState<number | "">(unitSize);
+  const [integerSize, setIntegerSize] = useState<IntegerSize>(4);
+  const [endianness, setEndianness] = useState<Endianness>("little");
+  const [fieldColor, setFieldColor] = useState<string | undefined>(undefined);
   const [sizeError, setSizeError] = useState(false);
   const [overlapError, setOverlapError] = useState(false);
+  const [intValueError, setIntValueError] = useState(false);
 
   useEffect(() => {
     if (cellToEdit) {
@@ -239,6 +302,9 @@ function CellForm({
       setValue(cellToEdit.value ?? "");
       setFieldName(cellToEdit.fieldName ?? "");
       setFieldSize(cellToEdit.fieldSize ?? "");
+      setIntegerSize(cellToEdit.integerSize ?? 4);
+      setEndianness(cellToEdit.endianness ?? "little");
+      setFieldColor(cellToEdit.fieldColor);
     }
   }, [cellToEdit]);
 
@@ -247,13 +313,16 @@ function CellForm({
       ? typeof fieldSize === "number"
         ? fieldSize
         : 0
-      : type === "hex"
-        ? parseHexBytes(value).length
-        : textToBytes(value).length;
+      : type === "integer"
+        ? integerSize
+        : type === "hex"
+          ? parseHexBytes(value).length
+          : textToBytes(value).length;
 
   const handleSave = () => {
     setSizeError(false);
     setOverlapError(false);
+    setIntValueError(false);
 
     const addr = address.trim();
     const normalizedAddress = fmtHex(parseHexAddr(addr), padLen);
@@ -270,6 +339,22 @@ function CellForm({
         address: normalizedAddress,
         fieldName: fieldName.trim() || "field",
         fieldSize: sz,
+        fieldColor,
+      };
+    } else if (type === "integer") {
+      // Validate integer value
+      try {
+        parseIntegerValue(value);
+      } catch {
+        setIntValueError(true);
+        return;
+      }
+      newCellData = {
+        type,
+        address: normalizedAddress,
+        value,
+        integerSize,
+        endianness,
       };
     } else {
       newCellData = { type, address: normalizedAddress, value };
@@ -301,7 +386,7 @@ function CellForm({
     <div className="rounded border border-gray-600 bg-gray-800/80 p-2 text-xs text-white">
       {/* Type selector (disabled when editing) */}
       <div className="mb-2 flex gap-1">
-        {(["hex", "text", "field"] as MemoryCellType[]).map((t) => (
+        {(["hex", "text", "field", "integer"] as MemoryCellType[]).map((t) => (
           <button
             key={t}
             onClick={() => {
@@ -371,6 +456,84 @@ function CellForm({
               Size must be ≥ 1 byte.
             </p>
           )}
+          <div className="mb-1 flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px] text-gray-400">
+              Color
+            </span>
+            <ColorPicker
+              value={fieldColor}
+              onChange={(c) => setFieldColor(c)}
+            />
+          </div>
+        </>
+      ) : type === "integer" ? (
+        <>
+          <div className="mb-1 flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px] text-gray-400">
+              Size
+            </span>
+            <div className="flex flex-1 gap-1">
+              {([1, 2, 4, 8] as IntegerSize[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setIntegerSize(s)}
+                  className={`flex-1 rounded border py-0.5 text-[10px] font-semibold transition-all ${
+                    integerSize === s
+                      ? "border-green-500 bg-green-900/40 text-green-300"
+                      : "border-gray-600 text-gray-400 hover:border-gray-500"
+                  }`}
+                >
+                  {s}B
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mb-1 flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px] text-gray-400">
+              Endian
+            </span>
+            <div className="flex flex-1 gap-1">
+              {(["little", "big"] as Endianness[]).map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setEndianness(e)}
+                  className={`flex-1 rounded border py-0.5 text-[10px] font-semibold transition-all ${
+                    endianness === e
+                      ? "border-green-500 bg-green-900/40 text-green-300"
+                      : "border-gray-600 text-gray-400 hover:border-gray-500"
+                  }`}
+                >
+                  {e === "little" ? "Little" : "Big"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mb-1 flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px] text-gray-400">
+              Value
+            </span>
+            <input
+              value={value}
+              onChange={(e) => {
+                setIntValueError(false);
+                const raw = e.target.value;
+                // Allow decimal, 0b binary, 0x hex, 0o octal, and negative sign
+                const sanitized = raw.replace(/[^0-9a-fA-FxXbBoO\-]/g, "");
+                setValue(sanitized);
+              }}
+              placeholder="255, 0xFF, 0b11111111, 0o377"
+              className={`flex-1 rounded border bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-300 focus:outline-none ${
+                intValueError
+                  ? "border-red-500 ring-1 ring-red-500"
+                  : "border-gray-600"
+              }`}
+            />
+          </div>
+          {intValueError && (
+            <p className="mb-1 text-[10px] text-red-400">
+              Invalid integer value.
+            </p>
+          )}
         </>
       ) : (
         <div className="mb-1 flex items-center gap-1">
@@ -433,6 +596,8 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
   const cells: MemoryCell[] = data.cells ?? [];
   const base = parseHexAddr(data.baseAddress ?? "0x0000");
   const end = parseHexAddr(data.endAddress ?? "0x0000");
+  const customColor = data.nodeColor;
+  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
   const padLen = Math.max(4, end.toString(16).length);
   const viewMinWidth =
     ADDR_COL_W + GAP_W + unitSize * BYTE_CELL_W + GAP_W + ANNOTATION_COL_W;
@@ -533,14 +698,45 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
       );
     }
 
+    if (ann.type === "integer") {
+      return (
+        <span
+          key={byteAddr}
+          className="inline-block w-[18px] text-center font-mono text-[9px] text-green-300"
+          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (integer)`}
+        >
+          {ann.value.toString(16).toUpperCase().padStart(2, "0")}
+        </span>
+      );
+    }
+
     // ── field type: draw a "long line" style border ─────────
 
+    const cell = cells.find((c) => c.id === ann.cellId);
+    const customFieldColor = cell?.fieldColor;
     const col = FIELD_COLORS[fieldColorMap.get(ann.cellId) ?? 0];
     const fieldStart = ann.fieldStartAddr ?? 0;
     const borderT = "border-t-2";
     const borderB = "border-b-2";
     const borderL = ann.isFirst ? "border-l-2" : "";
     const borderR = ann.isLast ? "border-r-2" : "";
+
+    if (customFieldColor) {
+      return (
+        <span
+          key={byteAddr}
+          className={`inline-block w-[18px] h-[18px] text-center font-mono text-[9px] ${borderT} ${borderB} ${borderL} ${borderR}`}
+          style={{
+            backgroundColor: `${customFieldColor}33`,
+            color: customFieldColor,
+            borderColor: customFieldColor,
+          }}
+          title={`${ann.fieldName ?? "field"} (+${byteAddr - fieldStart})`}
+        >
+          {ann.isFirst ? "▶" : ""}
+        </span>
+      );
+    }
 
     return (
       <span
@@ -615,6 +811,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
             const e = s + (cell.fieldSize ?? 1);
 
             const col = FIELD_COLORS[fieldColorMap.get(cell.id) ?? 0];
+            const customFieldColor = cell.fieldColor;
             const fieldName = cell.fieldName ?? "field";
 
             const title = `${fieldName} (${cell.fieldSize}B @ ${cell.address}, offset ${s - base})`;
@@ -634,6 +831,36 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
               e - 1 >= seg.startAddr && e - 1 < seg.startAddr + seg.length
                 ? "border-r-2"
                 : "";
+
+            if (customFieldColor) {
+              return (
+                <div
+                  key={i}
+                  className={[
+                    "flex items-center overflow-hidden px-1",
+                    borderT,
+                    borderB,
+                    borderL,
+                    borderR,
+                  ].join(" ")}
+                  style={{
+                    width: `${(seg.length / unitSize) * 100}%`,
+                    borderColor: customFieldColor,
+                  }}
+                  title={title}
+                >
+                  {s >= rowAddr &&
+                    s < rowEndAddr && (
+                      <span
+                        className="w-full truncate text-center text-[9px] font-semibold"
+                        style={{ color: customFieldColor }}
+                      >
+                        {cell.fieldName}
+                      </span>
+                    )}
+                </div>
+              );
+            }
 
             return (
               <div
@@ -673,7 +900,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
 
       if (!ann) {
         ascii += ".";
-      } else if (ann.type === "hex" || ann.type === "text") {
+      } else if (ann.type === "hex" || ann.type === "text" || ann.type === "integer") {
         ascii +=
           ann.value >= 0x20 && ann.value < 0x7f
             ? String.fromCharCode(ann.value)
@@ -692,12 +919,22 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
     <div
       className={`rounded-lg border-2 bg-gray-950 text-white shadow-lg transition-all ${
         selected
-          ? "border-orange-400 shadow-orange-400/30 shadow-lg"
-          : "border-gray-700"
+          ? customColor
+            ? "shadow-lg"
+            : "border-orange-400 shadow-orange-400/30 shadow-lg"
+          : customColor
+            ? ""
+            : "border-gray-700"
       }`}
       style={{
         minWidth: isEditing ? Math.max(340, viewMinWidth) : viewMinWidth,
         position: "relative",
+        ...(customColor
+          ? {
+              borderColor: selected ? customColor : `${customColor}99`,
+              boxShadow: selected ? `0 10px 15px -3px ${customColor}40` : undefined,
+            }
+          : {}),
       }}
     >
       {/* Left handles */}
@@ -739,15 +976,26 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
       {/* Header */}
 
       <div
-        className="flex items-center rounded-t-lg bg-orange-800 px-3"
-        style={{ height: HEADER_H }}
+        className={`flex items-center rounded-t-lg px-3 ${customColor ? '' : 'bg-orange-800'}`}
+        style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <div className="flex-1 overflow-hidden">
-          <div className="text-[10px] text-orange-200">memory layout</div>
+          <div
+            className={`text-[10px] ${headerTextColor ? '' : 'text-orange-200'}`}
+            style={headerTextColor ? { color: headerTextColor } : undefined}
+          >
+            memory layout
+          </div>
 
-          <div className="truncate font-bold text-orange-50">
+          <div
+            className={`truncate font-bold ${headerTextColor ? '' : 'text-orange-50'}`}
+            style={headerTextColor ? { color: headerTextColor } : undefined}
+          >
             {data.name ?? "Untitled"}
-            <span className="truncate rounded px-2 py-0.5 text-[10px] text-orange-300">
+            <span
+              className={`truncate rounded px-2 py-0.5 text-[10px] ${headerTextColor ? '' : 'text-orange-300'}`}
+              style={headerTextColor ? { color: headerTextColor } : undefined}
+            >
               <span className="font-mono text-[12px]">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
               {isAutoCollapsed ? " · auto-collapsed" : " "} · {" "}
               {unitSize}B / row
@@ -756,7 +1004,8 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
         </div>
 
         <button
-          className="shrink-0 text-orange-200 hover:text-white"
+          className={`shrink-0 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
           title={isEditing ? "Done editing" : "Edit content"}
           onClick={(e) => {
             e.stopPropagation();
@@ -894,7 +1143,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
                       onClick={() => setEditingCellId(c.id)}
                     >
                       <span className="w-5 shrink-0 rounded bg-gray-700 px-0.5 text-center font-mono text-[9px] text-gray-300">
-                        {c.type === "hex" ? "H" : c.type === "text" ? "T" : "F"}
+                        {c.type === "hex" ? "H" : c.type === "text" ? "T" : c.type === "integer" ? "I" : "F"}
                       </span>
 
                       <span className="font-mono text-green-400">
@@ -904,7 +1153,9 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
                       <span className="flex-1 truncate text-gray-300">
                         {c.type === "field"
                           ? `${c.fieldName} (${c.fieldSize}B)`
-                          : `${c.value} (${cellByteSize(c)}B)`}
+                          : c.type === "integer"
+                            ? `${c.value} (${c.integerSize}B ${c.endianness === "big" ? "BE" : "LE"})`
+                            : `${c.value} (${cellByteSize(c)}B)`}
                       </span>
 
                       <button
