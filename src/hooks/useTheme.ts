@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useSyncExternalStore, useCallback } from 'react';
 
 type Theme = 'light' | 'dark';
 
@@ -28,30 +28,42 @@ function applyTheme(theme: Theme) {
   }
 }
 
-export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return getStoredTheme() ?? getSystemTheme();
+// ── Shared module-level state ──────────────────────────────────
+let currentTheme: Theme = getStoredTheme() ?? getSystemTheme();
+applyTheme(currentTheme);
+
+const listeners = new Set<() => void>();
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+function getSnapshot(): Theme {
+  return currentTheme;
+}
+
+function setThemeInternal(t: Theme) {
+  if (t === currentTheme) return;
+  currentTheme = t;
+  applyTheme(t);
+  listeners.forEach((l) => l());
+}
+
+// Listen for system preference changes — always respond
+if (typeof window !== 'undefined') {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener('change', (e) => {
+    setThemeInternal(e.matches ? 'dark' : 'light');
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   });
+}
 
-  // Apply theme on mount and when it changes
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
-
-  // Listen for system preference changes (only when no stored preference)
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-      if (!getStoredTheme()) {
-        setThemeState(e.matches ? 'dark' : 'light');
-      }
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+export function useTheme() {
+  const theme = useSyncExternalStore(subscribe, getSnapshot);
 
   const setTheme = useCallback((t: Theme) => {
-    setThemeState(t);
+    setThemeInternal(t);
     try {
       localStorage.setItem(STORAGE_KEY, t);
     } catch {
@@ -60,8 +72,8 @@ export function useTheme() {
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  }, [theme, setTheme]);
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  }, [setTheme]);
 
   return { theme, setTheme, toggleTheme };
 }
