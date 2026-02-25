@@ -99,19 +99,19 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
     <div ref={ref} className="relative">
       <div className="flex items-center gap-2">
         {label && (
-          <span className="text-xs font-semibold uppercase text-gray-400">{label}</span>
+          <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</span>
         )}
         <button
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-1.5 rounded border border-gray-600 bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:border-gray-500"
+          className="flex items-center gap-1.5 rounded border border-gray-300 bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:border-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:border-gray-500"
         >
           {value ? (
             <span
-              className="inline-block h-3 w-3 rounded-sm border border-gray-500"
+              className="inline-block h-3 w-3 rounded-sm border border-gray-400 dark:border-gray-500"
               style={{ backgroundColor: value }}
             />
           ) : (
-            <Palette size={12} className="text-gray-400" />
+            <Palette size={12} className="text-gray-500 dark:text-gray-400" />
           )}
           <span>{value ? value : 'Default'}</span>
         </button>
@@ -126,9 +126,9 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-gray-600 bg-gray-800 p-3 shadow-xl">
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-600 dark:bg-gray-800">
           {/* Predefined palette – transposed: columns = hues, rows = lightness */}
-          <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-400">Palette</p>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Palette</p>
           <div className="mb-3 space-y-px">
             {Array.from({ length: SHADE_COUNT }, (_, shadeIdx) => (
               <div key={shadeIdx} className="flex gap-px">
@@ -138,7 +138,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
                     onClick={() => handleSelect(group.shades[shadeIdx])}
                     className={`h-4 w-4 shrink-0 transition-all hover:scale-125 hover:z-10 ${
                       value === group.shades[shadeIdx]
-                        ? 'ring-1 ring-white ring-offset-1 ring-offset-gray-800 z-10'
+                        ? 'ring-1 ring-gray-900 ring-offset-1 ring-offset-white z-10 dark:ring-white dark:ring-offset-gray-800'
                         : ''
                     }`}
                     style={{ backgroundColor: group.shades[shadeIdx] }}
@@ -152,7 +152,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
           {/* Recently used */}
           {recentColors.length > 0 && (
             <>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-400">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
                 Recently used
               </p>
               <div className="mb-3 flex gap-1">
@@ -161,7 +161,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
                     key={c}
                     onClick={() => handleSelect(c)}
                     className={`h-5 w-5 rounded-sm border transition-all hover:scale-110 ${
-                      value === c ? 'border-white ring-1 ring-white' : 'border-gray-600'
+                      value === c ? 'border-gray-900 ring-1 ring-gray-900 dark:border-white dark:ring-white' : 'border-gray-300 dark:border-gray-600'
                     }`}
                     style={{ backgroundColor: c }}
                     title={c}
@@ -172,13 +172,13 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
           )}
 
           {/* Custom color input */}
-          <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-400">Custom</p>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Custom</p>
           <div className="flex items-center gap-2">
             <input
               type="color"
               value={value || '#6366f1'}
               onChange={(e) => handleSelect(e.target.value)}
-              className="h-7 w-7 cursor-pointer rounded border border-gray-600 bg-transparent"
+              className="h-7 w-7 cursor-pointer rounded border border-gray-300 bg-transparent dark:border-gray-600"
             />
             <input
               type="text"
@@ -190,7 +190,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
                 }
               }}
               placeholder="#6366f1"
-              className="flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-1 font-mono text-[10px] text-white focus:outline-none"
+              className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1 font-mono text-[10px] text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
         </div>

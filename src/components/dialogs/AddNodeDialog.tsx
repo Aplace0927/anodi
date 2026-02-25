@@ -40,7 +40,7 @@ export default function AddNodeDialog({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-96 rounded-xl bg-white shadow-2xl">
+      <div className="w-96 rounded-xl bg-white shadow-2xl dark:bg-gray-900">
         {/* Title bar */}
         <div className="flex items-center justify-between rounded-t-xl bg-gray-800 px-4 py-3">
           <span className="font-semibold text-white">Add Node</span>
@@ -52,7 +52,7 @@ export default function AddNodeDialog({ onClose }: Props) {
         <div className="space-y-4 p-4">
           {/* Node type */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
               Node Type
             </label>
             <div className="flex gap-2">
@@ -62,8 +62,8 @@ export default function AddNodeDialog({ onClose }: Props) {
                   onClick={() => setNodeType(t)}
                   className={`flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all ${
                     nodeType === t
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
                   }`}
                 >
                   {t === 'source' ? '📄 Source' : t === 'class' ? '🔷 Class' : '🗃 Memory'}
@@ -74,7 +74,7 @@ export default function AddNodeDialog({ onClose }: Props) {
 
           {/* Name */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
               Name
             </label>
             <input
@@ -85,20 +85,20 @@ export default function AddNodeDialog({ onClose }: Props) {
               placeholder={
                 nodeType === 'class' ? 'ClassName' : nodeType === 'memory' ? 'Stack Frame' : 'main.c'
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
           </div>
 
           {/* Language (source only) */}
           {nodeType === 'source' && (
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+              <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                 Language
               </label>
               <select
                 value={lang}
                 onChange={(e) => setLang(e.target.value as SourceLanguage)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               >
                 {LANGS.map((l) => (
                   <option key={l} value={l}>
@@ -114,30 +114,30 @@ export default function AddNodeDialog({ onClose }: Props) {
             <>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                     Base Address
                   </label>
                   <input
                     value={baseAddress}
                     onChange={(e) => setBaseAddress(e.target.value)}
                     placeholder="0x0000"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                     End Address
                   </label>
                   <input
                     value={endAddress}
                     onChange={(e) => setEndAddress(e.target.value)}
                     placeholder="0x0100"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-gray-500">
+                <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                   Unit Size (bytes)
                 </label>
                 <div className="flex gap-2">
@@ -147,8 +147,8 @@ export default function AddNodeDialog({ onClose }: Props) {
                       onClick={() => setUnitSize(u)}
                       className={`flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all ${
                         unitSize === u
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                          ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
                       }`}
                     >
                       {u}B
@@ -160,10 +160,10 @@ export default function AddNodeDialog({ onClose }: Props) {
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t px-4 py-3">
+        <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
           <button
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+            className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
           >
             Cancel
           </button>

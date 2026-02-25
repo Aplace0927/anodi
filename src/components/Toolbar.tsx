@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronDown, Download, Image, FileText } from 'lucide-react';
+import { Plus, Search, ChevronDown, Download, Image, FileText, Sun, Moon } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
 import { EDGE_STYLES } from '../types';
@@ -8,7 +8,12 @@ import { exportToPng, exportToPdf } from '../utils/export';
 
 const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
 
-export default function Toolbar() {
+interface ToolbarProps {
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+}
+
+export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
   const [showAddNode, setShowAddNode] = useState(false);
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
@@ -22,10 +27,10 @@ export default function Toolbar() {
 
   return (
     <>
-      <div className="absolute left-0 right-0 top-0 z-20 flex h-12 items-center gap-3 border-b border-gray-700 bg-gray-900 px-4 shadow-md">
+      <div className="absolute left-0 right-0 top-0 z-20 flex h-12 items-center gap-3 border-b border-gray-300 bg-white px-4 shadow-md dark:border-gray-700 dark:bg-gray-900">
         {/* Branding */}
-        <span className="mr-2 text-lg font-extrabold tracking-tight text-white">
-          an<span className="text-indigo-400">odi</span>
+        <span className="mr-2 text-lg font-extrabold tracking-tight text-gray-900 dark:text-white">
+          an<span className="text-indigo-500 dark:text-indigo-400">odi</span>
         </span>
 
         {/* Add node */}
@@ -41,18 +46,18 @@ export default function Toolbar() {
         <div className="relative">
           <button
             onClick={() => setShowEdgeDropdown((v) => !v)}
-            className="flex items-center gap-2 rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700"
+            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
           >
             <span
               className="inline-block h-2.5 w-5 rounded-sm"
               style={{ backgroundColor: activeStyle.color }}
             />
             <span>{activeStyle.label}</span>
-            <ChevronDown size={14} className="text-gray-400" />
+            <ChevronDown size={14} className="text-gray-500 dark:text-gray-400" />
           </button>
 
           {showEdgeDropdown && (
-            <div className="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-700 bg-gray-800 shadow-xl">
+            <div className="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
               {RELATIONSHIPS.map((rel) => {
                 const s = EDGE_STYLES[rel];
                 return (
@@ -62,8 +67,8 @@ export default function Toolbar() {
                       setActiveEdgeType(rel);
                       setShowEdgeDropdown(false);
                     }}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-gray-700 ${
-                      rel === activeEdgeType ? 'text-white' : 'text-gray-300'
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                      rel === activeEdgeType ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'
                     }`}
                   >
                     <span
@@ -82,21 +87,21 @@ export default function Toolbar() {
         <div className="relative">
           <button
             onClick={() => setShowExportDropdown((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
           >
             <Download size={14} />
             <span>Export</span>
-            <ChevronDown size={14} className="text-gray-400" />
+            <ChevronDown size={14} className="text-gray-500 dark:text-gray-400" />
           </button>
 
           {showExportDropdown && (
-            <div className="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-700 bg-gray-800 shadow-xl">
+            <div className="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
               <button
                 onClick={() => {
                   setShowExportDropdown(false);
                   exportToPng();
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
               >
                 <Image size={14} />
                 Export as PNG
@@ -106,7 +111,7 @@ export default function Toolbar() {
                   setShowExportDropdown(false);
                   exportToPdf();
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
               >
                 <FileText size={14} />
                 Export as PDF
@@ -115,6 +120,15 @@ export default function Toolbar() {
           )}
         </div>
 
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          className="flex items-center justify-center rounded-lg border border-gray-300 bg-gray-100 p-1.5 text-gray-700 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+
         {/* Search */}
         <div className="relative ml-auto flex items-center">
           <Search size={14} className="absolute left-2.5 text-gray-400" />
@@ -122,7 +136,7 @@ export default function Toolbar() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search nodes…"
-            className="w-56 rounded-lg border border-gray-600 bg-gray-800 py-1.5 pl-8 pr-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-56 rounded-lg border border-gray-300 bg-gray-100 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
           />
         </div>
       </div>

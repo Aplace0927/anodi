@@ -115,14 +115,14 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
 
   return (
     <div
-      className={`rounded-lg border-2 bg-gray-900 text-white shadow-lg transition-all ${
+      className={`rounded-lg border-2 bg-white text-gray-900 shadow-lg transition-all dark:bg-gray-900 dark:text-white ${
         selected
           ? customColor
             ? 'shadow-lg'
             : 'border-blue-400 shadow-blue-400/40 shadow-lg'
           : customColor
             ? ''
-            : 'border-gray-600'
+            : 'border-gray-300 dark:border-gray-600'
       }`}
       style={{
         minWidth: isEditing ? 480 : 280,
@@ -159,7 +159,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
 
       {/* Header */}
       <div
-        className={`flex items-center gap-2 rounded-t-lg px-3 ${customColor ? '' : 'bg-gray-800'}`}
+        className={`flex items-center gap-2 rounded-t-lg px-3 ${customColor ? '' : 'bg-gray-200 dark:bg-gray-800'}`}
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <span
@@ -168,13 +168,13 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
           {data.language}
         </span>
         <span
-          className={`flex-1 truncate text-sm font-semibold ${headerTextColor ? '' : 'text-gray-100'}`}
+          className={`flex-1 truncate text-sm font-semibold ${headerTextColor ? '' : 'text-gray-800 dark:text-gray-100'}`}
           style={headerTextColor ? { color: headerTextColor } : undefined}
         >
           {data.name ?? 'Untitled'}
         </span>
         <button
-          className={`shrink-0 ${headerTextColor ? '' : 'text-gray-400'} hover:text-white`}
+          className={`shrink-0 ${headerTextColor ? '' : 'text-gray-500 dark:text-gray-400'} hover:text-gray-900 dark:hover:text-white`}
           style={headerTextColor ? { color: headerTextColor } : undefined}
           title={isEditing ? 'Done editing' : 'Edit code'}
           onClick={(e) => {
@@ -195,7 +195,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
         >
           {/* Language selector */}
           <div className="flex items-center gap-2 px-1">
-            <label className="shrink-0 text-[10px] font-semibold uppercase text-gray-400">
+            <label className="shrink-0 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
               Language
             </label>
             <select
@@ -203,7 +203,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
               onChange={(e) =>
                 updateNodeData(id, { language: e.target.value as SourceLanguage })
               }
-              className="flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-0.5 text-xs text-white focus:outline-none"
+              className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             >
               {LANGS.map((l) => (
                 <option key={l} value={l}>
@@ -215,7 +215,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
 
           {/* Monaco editor */}
           <div
-            className="overflow-hidden rounded border border-gray-600"
+            className="overflow-hidden rounded border border-gray-300 dark:border-gray-600"
             style={{ height: 300 }}
           >
             <MonacoEditor
@@ -238,16 +238,16 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
           {/* Collapsed line map — one input per "..." marker */}
           {ellipsisIndices.length > 0 && (
             <div className="px-1">
-              <label className="mb-1 block text-[10px] font-semibold uppercase text-gray-400">
+              <label className="mb-1 block text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
                 Collapsed section start lines
               </label>
-              <p className="mb-1 text-[10px] text-gray-500">
-                For each <code className="text-gray-300">...</code> line, set the line number
+              <p className="mb-1 text-[10px] text-gray-500 dark:text-gray-500">
+                For each <code className="text-gray-700 dark:text-gray-300">...</code> line, set the line number
                 where the next section begins.
               </p>
               {ellipsisIndices.map((_, ordinal) => (
                 <div key={ordinal} className="mb-1 flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400">
                     After collapse {ordinal + 1}:
                   </span>
                   <input
@@ -256,7 +256,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
                     value={(data.collapsedLineMap ?? [])[ordinal] ?? ''}
                     onChange={(e) => handleMapChange(ordinal, e.target.value)}
                     placeholder="line #"
-                    className="w-16 rounded border border-gray-600 bg-gray-700 px-2 py-0.5 text-xs text-white focus:outline-none"
+                    className="w-16 rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                   />
                 </div>
               ))}
@@ -265,7 +265,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
         </div>
       ) : (
         /* ── View mode: Code lines ────────────────────────────────── */
-        <div className="mx-1 mb-2 overflow-hidden rounded bg-black/40">
+        <div className="mx-1 mb-2 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
           {items.length === 0 && (
             <div
               className="flex items-center px-2 text-[10px] italic text-gray-500"
@@ -292,7 +292,7 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
             return (
               <div
                 key={`line-${item.num}-${idx}`}
-                className="flex items-center gap-2 px-2 hover:bg-gray-700/30"
+                className="flex items-center gap-2 px-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/30"
                 style={{ height: LINE_H }}
               >
                 <span className="w-8 shrink-0 select-none text-right font-mono text-[9px] text-gray-500">
