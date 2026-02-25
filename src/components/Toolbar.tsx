@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronDown } from 'lucide-react';
+import { Plus, Search, ChevronDown, Download, Image, FileText } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
 import { EDGE_STYLES } from '../types';
 import AddNodeDialog from './dialogs/AddNodeDialog';
+import { exportToPng, exportToPdf } from '../utils/export';
 
 const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
 
 export default function Toolbar() {
   const [showAddNode, setShowAddNode] = useState(false);
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   const activeEdgeType = useGraphStore((s) => s.activeEdgeType);
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
@@ -72,6 +74,43 @@ export default function Toolbar() {
                   </button>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* Export */}
+        <div className="relative">
+          <button
+            onClick={() => setShowExportDropdown((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700"
+          >
+            <Download size={14} />
+            <span>Export</span>
+            <ChevronDown size={14} className="text-gray-400" />
+          </button>
+
+          {showExportDropdown && (
+            <div className="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-700 bg-gray-800 shadow-xl">
+              <button
+                onClick={() => {
+                  setShowExportDropdown(false);
+                  exportToPng();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                <Image size={14} />
+                Export as PNG
+              </button>
+              <button
+                onClick={() => {
+                  setShowExportDropdown(false);
+                  exportToPdf();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                <FileText size={14} />
+                Export as PDF
+              </button>
             </div>
           )}
         </div>
