@@ -10,7 +10,21 @@ body,
   padding: 0;
 }
 
-/* React Flow override – keep dark feel */
+/* React Flow overrides for dark mode */
 .dark .react-flow__attribution {
   background: transparent !important;
+}
+
+.dark .react-flow__controls-button {
+  background-color: #1f2937 !important; /* gray-800 */
+  color: #fff !important;
+  border-color: #374151 !important; /* gray-700 */
+}
+
+.dark .react-flow__controls-button:hover {
+  background-color: #374151 !important; /* gray-700 */
+}
+
+.dark .react-flow__controls-button svg {
+  fill: #fff !important;
 }
