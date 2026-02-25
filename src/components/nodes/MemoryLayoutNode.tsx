@@ -12,6 +12,7 @@ import type {
 } from "../../types";
 import { useGraphStore } from "../../store/graphStore";
 import { v4 } from "../../utils/uuid";
+import ColorPicker from "../ColorPicker";
 
 type Props = NodeProps & { data: MemoryLayoutData & { name?: string } };
 
@@ -459,25 +460,10 @@ function CellForm({
             <span className="w-16 shrink-0 text-[10px] text-gray-400">
               Color
             </span>
-            <div className="flex flex-1 items-center gap-1">
-              <input
-                type="color"
-                value={fieldColor || '#3b82f6'}
-                onChange={(e) => setFieldColor(e.target.value)}
-                className="h-5 w-5 cursor-pointer rounded border border-gray-600 bg-transparent"
-              />
-              {fieldColor && (
-                <button
-                  onClick={() => setFieldColor(undefined)}
-                  className="text-[10px] text-gray-500 hover:text-red-400"
-                >
-                  Clear
-                </button>
-              )}
-              {!fieldColor && (
-                <span className="text-[10px] text-gray-500">Default</span>
-              )}
-            </div>
+            <ColorPicker
+              value={fieldColor}
+              onChange={(c) => setFieldColor(c)}
+            />
           </div>
         </>
       ) : type === "integer" ? (
