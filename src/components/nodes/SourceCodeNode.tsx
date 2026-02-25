@@ -82,26 +82,28 @@ function parseLines(code: string, collapsedLineMap: number[]): LineItem[] {
   return items;
 }
 
-const SourceCodeNode = memo(({ id, data, selected }: Props) => {
+const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const { theme } = useTheme();
 
   const langColor = LANG_COLORS[data.language] ?? 'bg-gray-500';
-  const items = parseLines(data.code, data.collapsedLineMap ?? []);
-  const ellipsisIndices = findEllipsisIndices(data.code || '');
+  const items = dragging ? [] : parseLines(data.code, data.collapsedLineMap ?? []);
+  const ellipsisIndices = dragging ? [] : findEllipsisIndices(data.code || '');
   const customColor = data.nodeColor;
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
   // Compute cumulative Y positions for each visible line (for handle placement)
   let yOffset = 0;
   const linePositions: { num: number; top: number }[] = [];
-  for (const item of items) {
-    if (item === '...') {
-      yOffset += ELLIPSIS_H;
-    } else {
-      linePositions.push({ num: item.num, top: CONTENT_START + yOffset + LINE_H / 2 });
-      yOffset += LINE_H;
+  if (!dragging) {
+    for (const item of items) {
+      if (item === '...') {
+        yOffset += ELLIPSIS_H;
+      } else {
+        linePositions.push({ num: item.num, top: CONTENT_START + yOffset + LINE_H / 2 });
+        yOffset += LINE_H;
+      }
     }
   }
 
@@ -189,7 +191,13 @@ const SourceCodeNode = memo(({ id, data, selected }: Props) => {
         </button>
       </div>
 
-      {isEditing ? (
+      {dragging ? (
+        /* ── Drag mode: lightweight placeholder ───────────────────── */
+        <div
+          className="mx-1 mb-2 rounded bg-gray-100 dark:bg-black/40"
+          style={{ minHeight: 24 }}
+        />
+      ) : isEditing ? (
         /* ── Edit mode: inline Monaco editor ─────────────────────── */
         <div
           className="nodrag nopan nowheel mx-1 my-2 flex flex-col gap-2"

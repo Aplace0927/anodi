@@ -6,7 +6,7 @@ import { contrastTextColor } from "../ColorPicker";
 
 type Props = NodeProps & { data: ClassDiagramData & { name?: string } };
 
-const ClassDiagramNode = memo(({ data, selected }: Props) => {
+const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
   const customColor = data.nodeColor;
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
@@ -52,7 +52,7 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
       </div>
 
       {/* Fields */}
-      {data.fields.length > 0 && (
+      {!dragging && data.fields.length > 0 && (
         <div className="mx-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
           {data.fields.map((f) => (
             <div key={f.id} className="truncate text-[10px] text-gray-700 dark:text-gray-300">
@@ -63,7 +63,7 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
       )}
 
       {/* Methods */}
-      {data.methods.length > 0 && (
+      {!dragging && data.methods.length > 0 && (
         <div className="mx-2 mb-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
           {data.methods.map((m) => (
             <div key={m.id} className="truncate text-[10px] text-gray-700 dark:text-gray-300">
@@ -74,7 +74,7 @@ const ClassDiagramNode = memo(({ data, selected }: Props) => {
         </div>
       )}
 
-      {data.fields.length === 0 && data.methods.length === 0 && (
+      {!dragging && data.fields.length === 0 && data.methods.length === 0 && (
         <div className="mb-2 px-3 py-2 text-[10px] text-gray-400 italic">
           No members defined
         </div>

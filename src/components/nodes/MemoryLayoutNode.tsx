@@ -587,7 +587,7 @@ function CellForm({
 }
 // ── Main component ─────────────────────────────────────────────────
 
-const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
+const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
@@ -605,14 +605,14 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
   const isAutoCollapsed =
     end - base > MEMORY_THRESHOLD && (data.collapsedRanges ?? []).length === 0;
 
-  const rowItems = buildRowItems(
+  const rowItems = dragging ? [] : buildRowItems(
     data.baseAddress ?? "0x0000",
     data.endAddress ?? "0x0000",
     unitSize,
     data.collapsedRanges ?? [],
   );
 
-  const byteMap = buildByteMap(cells);
+  const byteMap = dragging ? new Map() : buildByteMap(cells);
 
   // Stable field colour index (by insertion order)
   const fieldColorMap = new Map<string, number>();
@@ -631,12 +631,14 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
 
   const rowPositions: { addr: number; label: string; top: number }[] = [];
 
-  for (const item of rowItems) {
-    if ("ellipsis" in item) {
-      yOffset += ELLIPSIS_H;
-    } else {
-      rowPositions.push({ ...item, top: CONTENT_START + yOffset + ROW_H / 2 });
-      yOffset += ROW_H;
+  if (!dragging) {
+    for (const item of rowItems) {
+      if ("ellipsis" in item) {
+        yOffset += ELLIPSIS_H;
+      } else {
+        rowPositions.push({ ...item, top: CONTENT_START + yOffset + ROW_H / 2 });
+        yOffset += ROW_H;
+      }
     }
   }
 
@@ -939,7 +941,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
     >
       {/* Left handles */}
 
-      {rowPositions.map(({ label, top }) => (
+      {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
           key={`addr-${label}-L`}
           type="target"
@@ -957,7 +959,7 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
 
       {/* Right handles */}
 
-      {rowPositions.map(({ label, top }) => (
+      {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
           key={`addr-${label}-R`}
           type="source"
@@ -1022,9 +1024,17 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
 
       <div className="flex items-center px-2" style={{ height: BADGE_H }}></div>
 
-      {/* Hex table */}
+      {dragging ? (
+        /* ── Drag mode: lightweight placeholder ───────────────────── */
+        <div
+          className="mx-1 mb-1 rounded bg-gray-100 dark:bg-black/40"
+          style={{ minHeight: 24 }}
+        />
+      ) : (
+        <>
+          {/* Hex table */}
 
-      <div className="mx-1 mb-1 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
+          <div className="mx-1 mb-1 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
         {rowItems.length === 0 && (
           <div
             className="px-2 text-[10px] italic text-gray-500"
@@ -1195,6 +1205,8 @@ const MemoryLayoutNode = memo(({ id, data, selected }: Props) => {
             </button>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );
