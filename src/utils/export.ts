@@ -1,4 +1,4 @@
-import { toPng } from 'html-to-image';
+import { toPng, toSvg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { AnodiNode, AnodiEdge } from '../types';
@@ -85,8 +85,8 @@ export async function exportToPng() {
 // ── PDF export ──────────────────────────────────────────────────────
 
 export async function exportToPdf() {
-  const el = getFlowElement();
-  if (!el) return;
+  const reactFlowEl = document.querySelector('*') as HTMLElement | null;
+  if (!reactFlowEl) return;
 
   const fit = computeFitViewport();
   if (!fit) return;
@@ -94,17 +94,11 @@ export async function exportToPdf() {
   const { imageWidth, imageHeight, viewport } = fit;
   const bgColor = themeBgColor();
 
-  // Render the viewport with html-to-image (same capture path as PNG
-  // export).  toPng serialises the live DOM into an SVG foreignObject and
-  // rasterises it in one step, preserving all computed styles.  Earlier
-  // attempts using pdf.html()+html2canvas failed because html2canvas
-  // cannot resolve React Flow's CSS transforms and Tailwind utilities
-  // inside its cloned, detached DOM.
-  const dataUrl = await toPng(el, {
+  // Capture the viewport as SVG using html-to-image (handles React Flow reliably)
+  const svgDataUrl = await toSvg(el, {
     backgroundColor: bgColor,
     width: imageWidth,
     height: imageHeight,
-    pixelRatio: 2,
     style: {
       width: `${imageWidth}px`,
       height: `${imageHeight}px`,
@@ -112,16 +106,73 @@ export async function exportToPdf() {
     },
   });
 
-  // Create a single-page PDF sized to the content and embed the image
-  const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'px',
-    format: [imageWidth, imageHeight],
-    hotfixes: ['px_scaling'],
+  // Rasterize the SVG to a canvas via the browser's native SVG renderer
+  const renderCanvas = document.createElement('canvas');
+  const pxRatio = 2;
+  renderCanvas.width = imageWidth * pxRatio;
+  renderCanvas.height = imageHeight * pxRatio;
+  const ctx = renderCanvas.getContext('2d');
+  if (!ctx) return;
+  ctx.scale(pxRatio, pxRatio);
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, imageWidth, imageHeight);
+
+  await new Promise<void>((resolve, reject) => {
+    const svgImg = new Image();
+    svgImg.onload = () => {
+      ctx.drawImage(svgImg, 0, 0, imageWidth, imageHeight);
+      resolve();
+    };
+    svgImg.onerror = reject;
+    svgImg.src = svgDataUrl;
   });
-  pdf.addImage(dataUrl, 'PNG', 0, 0, imageWidth, imageHeight);
-  pdf.save('anodi-board.pdf');
+
+  // Convert canvas to a PNG data-URL and place it in an <img> element.
+  // Canvas pixel data is lost during DOM cloneNode (used internally by
+  // html2canvas inside pdf.html), but <img src> is preserved in clones.
+  const pngDataUrl = renderCanvas.toDataURL('image/png');
+  const imgEl = document.createElement('img');
+  imgEl.src = pngDataUrl;
+  imgEl.style.cssText = `display:block;width:${imageWidth}px;height:${imageHeight}px;`;
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `position:fixed;left:0;top:0;width:${imageWidth}px;height:${imageHeight}px;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;`;
+  wrapper.appendChild(imgEl);
+  document.body.appendChild(wrapper);
+
+  // Wait for the image element to fully decode
+  await new Promise<void>((resolve) => {
+    if (imgEl.complete) resolve();
+    else imgEl.onload = () => resolve();
+  });
+
+  try {
+    const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'px',
+      format: [imageWidth, imageHeight],
+      hotfixes: ['px_scaling'],
+    });
+
+    await pdf.html(wrapper, {
+      x: 0,
+      y: 0,
+      width: imageWidth,
+      windowWidth: imageWidth,
+      autoPaging: false,
+      html2canvas: {
+        // scale: 1 is sufficient — the <img> already contains 2x pixel data
+        scale: 1,
+        width: imageWidth,
+        height: imageHeight,
+      },
+    });
+
+    pdf.save('anodi-board.pdf');
+  } finally {
+    document.body.removeChild(wrapper);
+  }
 }
 
 // ── JSON export / import ────────────────────────────────────────────
