@@ -111,7 +111,8 @@ export async function exportToPdf() {
   const pxRatio = 2;
   renderCanvas.width = imageWidth * pxRatio;
   renderCanvas.height = imageHeight * pxRatio;
-  const ctx = renderCanvas.getContext('2d')!;
+  const ctx = renderCanvas.getContext('2d');
+  if (!ctx) return;
   ctx.scale(pxRatio, pxRatio);
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, imageWidth, imageHeight);
@@ -135,7 +136,7 @@ export async function exportToPdf() {
   imgEl.style.cssText = `display:block;width:${imageWidth}px;height:${imageHeight}px;`;
 
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = `position:fixed;left:0;top:0;width:${imageWidth}px;height:${imageHeight}px;overflow:hidden;z-index:-1;`;
+  wrapper.style.cssText = `position:fixed;left:0;top:0;width:${imageWidth}px;height:${imageHeight}px;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;`;
   wrapper.appendChild(imgEl);
   document.body.appendChild(wrapper);
 
@@ -161,6 +162,7 @@ export async function exportToPdf() {
       windowWidth: imageWidth,
       autoPaging: false,
       html2canvas: {
+        // scale: 1 is sufficient — the <img> already contains 2x pixel data
         scale: 1,
         width: imageWidth,
         height: imageHeight,
