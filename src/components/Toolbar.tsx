@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronDown } from 'lucide-react';
+import { Plus, Search, ChevronDown, FileDown } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
 import { EDGE_STYLES } from '../types';
 import AddNodeDialog from './dialogs/AddNodeDialog';
+import { exportToPdf } from '../utils/exportToPdf';
 
 const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'sharedVariable'];
 
@@ -75,6 +76,15 @@ export default function Toolbar() {
             </div>
           )}
         </div>
+
+        {/* Export PDF */}
+        <button
+          onClick={() => exportToPdf()}
+          className="flex items-center gap-1.5 rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700 active:scale-95 transition-all"
+        >
+          <FileDown size={15} />
+          Export PDF
+        </button>
 
         {/* Search */}
         <div className="relative ml-auto flex items-center">

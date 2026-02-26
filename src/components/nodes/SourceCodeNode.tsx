@@ -24,33 +24,33 @@ const SourceCodeNode = memo(({ data, selected }: Props) => {
 
   return (
     <div
-      className={`w-56 rounded-lg border-2 bg-gray-900 text-white shadow-lg transition-all ${
+      className={`anodi-export w-56 rounded-lg border-2 bg-gray-900 text-white shadow-lg transition-all ${
         selected ? 'border-blue-400 shadow-blue-400/40 shadow-lg' : 'border-gray-600'
       }`}
     >
       <Handle type="target" position={Position.Top} className="!bg-gray-400" />
 
       {/* Header */}
-      <div className="flex items-center gap-2 rounded-t-lg bg-gray-800 px-3 py-2">
+      <div className="anodi-export flex items-center gap-2 rounded-t-lg bg-gray-800 px-3 py-2">
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${langColor}`}
+          className={`anodi-export rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${langColor}`}
         >
           {data.language}
         </span>
-        <span className="truncate text-sm font-semibold text-gray-100">
+        <span className="anodi-export truncate text-sm font-semibold text-gray-100">
           {data.name ?? 'Untitled'}
         </span>
       </div>
 
       {/* Badge */}
-      <div className="px-3 pt-1">
-        <span className="rounded bg-indigo-900/60 px-2 py-0.5 text-[10px] text-indigo-300">
+      <div className="anodi-export px-3 pt-1">
+        <span className="anodi-export rounded bg-indigo-900/60 px-2 py-0.5 text-[10px] text-indigo-300">
           source code
         </span>
       </div>
 
       {/* Preview */}
-      <pre className="mx-3 mb-3 mt-1.5 overflow-hidden rounded bg-black/40 px-2 py-1.5 text-[10px] leading-relaxed text-green-300 opacity-90 line-clamp-4">
+      <pre className="anodi-export mx-3 mb-3 mt-1.5 overflow-hidden rounded bg-black/40 px-2 py-1.5 text-[10px] leading-relaxed text-green-300 opacity-90 line-clamp-4">
         {preview}
       </pre>
 
