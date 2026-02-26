@@ -1,4 +1,4 @@
-import { toPng, toSvg } from 'html-to-image';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { AnodiNode, AnodiEdge } from '../types';
@@ -94,85 +94,55 @@ export async function exportToPdf() {
   const { imageWidth, imageHeight, viewport } = fit;
   const bgColor = themeBgColor();
 
-  // Capture the viewport as SVG using html-to-image (handles React Flow reliably)
-  const svgDataUrl = await toSvg(el, {
-    backgroundColor: bgColor,
+  // Create a single-page PDF sized to the content
+  const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
+  const pdf = new jsPDF({
+    orientation,
+    unit: 'px',
+    format: [imageWidth, imageHeight],
+    hotfixes: ['px_scaling'],
+  });
+
+  // Render actual HTML into the PDF via html2canvas (no image capture)
+  await pdf.html(reactFlowEl, {
+    x: 0,
+    y: 0,
     width: imageWidth,
-    height: imageHeight,
-    style: {
-      width: `${imageWidth}px`,
-      height: `${imageHeight}px`,
-      transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+    windowWidth: imageWidth,
+    autoPaging: false,
+    html2canvas: {
+      scale: 2,
+      backgroundColor: bgColor,
+      useCORS: true,
+      logging: false,
+      width: imageWidth,
+      height: imageHeight,
+      onclone: (clonedDoc: Document) => {
+        // Resize the cloned container to fit all content
+        const clonedWrapper = clonedDoc.querySelector('.react-flow') as HTMLElement;
+        if (clonedWrapper) {
+          clonedWrapper.style.width = `${imageWidth}px`;
+          clonedWrapper.style.height = `${imageHeight}px`;
+        }
+
+        // Apply the computed viewport transform so every node is visible
+        const clonedViewport = clonedDoc.querySelector('.react-flow__viewport') as HTMLElement;
+        if (clonedViewport) {
+          clonedViewport.style.transform =
+            `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+        }
+
+        // Hide interactive UI elements from the export
+        clonedDoc
+          .querySelectorAll('.react-flow__controls, .react-flow__minimap, .react-flow__attribution')
+          .forEach((uiEl) => {
+            (uiEl as HTMLElement).style.display = 'none';
+          });
+      },
     },
   });
 
-  // Rasterize the SVG to a canvas via the browser's native SVG renderer
-  const renderCanvas = document.createElement('canvas');
-  const pxRatio = 2;
-  renderCanvas.width = imageWidth * pxRatio;
-  renderCanvas.height = imageHeight * pxRatio;
-  const ctx = renderCanvas.getContext('2d');
-  if (!ctx) return;
-  ctx.scale(pxRatio, pxRatio);
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, imageWidth, imageHeight);
-
-  await new Promise<void>((resolve, reject) => {
-    const svgImg = new Image();
-    svgImg.onload = () => {
-      ctx.drawImage(svgImg, 0, 0, imageWidth, imageHeight);
-      resolve();
-    };
-    svgImg.onerror = reject;
-    svgImg.src = svgDataUrl;
-  });
-
-  // Convert canvas to a PNG data-URL and place it in an <img> element.
-  // Canvas pixel data is lost during DOM cloneNode (used internally by
-  // html2canvas inside pdf.html), but <img src> is preserved in clones.
-  const pngDataUrl = renderCanvas.toDataURL('image/png');
-  const imgEl = document.createElement('img');
-  imgEl.src = pngDataUrl;
-  imgEl.style.cssText = `display:block;width:${imageWidth}px;height:${imageHeight}px;`;
-
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = `position:fixed;left:0;top:0;width:${imageWidth}px;height:${imageHeight}px;overflow:hidden;z-index:-1;pointer-events:none;opacity:0;`;
-  wrapper.appendChild(imgEl);
-  document.body.appendChild(wrapper);
-
-  // Wait for the image element to fully decode
-  await new Promise<void>((resolve) => {
-    if (imgEl.complete) resolve();
-    else imgEl.onload = () => resolve();
-  });
-
-  try {
-    const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
-    const pdf = new jsPDF({
-      orientation,
-      unit: 'px',
-      format: [imageWidth, imageHeight],
-      hotfixes: ['px_scaling'],
-    });
-
-    await pdf.html(wrapper, {
-      x: 0,
-      y: 0,
-      width: imageWidth,
-      windowWidth: imageWidth,
-      autoPaging: false,
-      html2canvas: {
-        // scale: 1 is sufficient — the <img> already contains 2x pixel data
-        scale: 1,
-        width: imageWidth,
-        height: imageHeight,
-      },
-    });
-
-    pdf.save('anodi-board.pdf');
-  } finally {
-    document.body.removeChild(wrapper);
-  }
+  pdf.save('anodi-board.pdf');
 }
 
 // ── JSON export / import ────────────────────────────────────────────
