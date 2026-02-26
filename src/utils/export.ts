@@ -85,27 +85,14 @@ export async function exportToPng() {
 // ── PDF export ──────────────────────────────────────────────────────
 
 export async function exportToPdf() {
-  const el = getFlowElement();
-  if (!el) return;
+  const flowWrapper = document.querySelector('.react-flow') as HTMLElement | null;
+  if (!flowWrapper) return;
 
   const fit = computeFitViewport();
   if (!fit) return;
 
   const { imageWidth, imageHeight, viewport } = fit;
   const bgColor = themeBgColor();
-
-  // Render the viewport with all nodes visible at the correct scale
-  const dataUrl = await toPng(el, {
-    backgroundColor: bgColor,
-    width: imageWidth,
-    height: imageHeight,
-    pixelRatio: 2,
-    style: {
-      width: `${imageWidth}px`,
-      height: `${imageHeight}px`,
-      transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-    },
-  });
 
   // Create a single-page PDF sized to the content
   const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
@@ -116,7 +103,45 @@ export async function exportToPdf() {
     hotfixes: ['px_scaling'],
   });
 
-  pdf.addImage(dataUrl, 'PNG', 0, 0, imageWidth, imageHeight);
+  // Render actual HTML into the PDF via html2canvas (no image capture)
+  await pdf.html(flowWrapper, {
+    x: 0,
+    y: 0,
+    width: imageWidth,
+    windowWidth: imageWidth,
+    autoPaging: false,
+    html2canvas: {
+      scale: 1,
+      backgroundColor: bgColor,
+      useCORS: true,
+      logging: false,
+      width: imageWidth,
+      height: imageHeight,
+      onclone: (clonedDoc: Document) => {
+        // Resize the cloned container to fit all content
+        const clonedWrapper = clonedDoc.querySelector('.react-flow') as HTMLElement;
+        if (clonedWrapper) {
+          clonedWrapper.style.width = `${imageWidth}px`;
+          clonedWrapper.style.height = `${imageHeight}px`;
+        }
+
+        // Apply the computed viewport transform so every node is visible
+        const clonedViewport = clonedDoc.querySelector('.react-flow__viewport') as HTMLElement;
+        if (clonedViewport) {
+          clonedViewport.style.transform =
+            `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+        }
+
+        // Hide interactive UI elements from the export
+        clonedDoc
+          .querySelectorAll('.react-flow__controls, .react-flow__minimap, .react-flow__attribution')
+          .forEach((el) => {
+            (el as HTMLElement).style.display = 'none';
+          });
+      },
+    },
+  });
+
   pdf.save('anodi-board.pdf');
 }
 
