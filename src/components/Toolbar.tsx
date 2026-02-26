@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Plus, Search, ChevronDown, Download, Image, FileText, Sun, Moon } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
 import { EDGE_STYLES } from '../types';
 import AddNodeDialog from './dialogs/AddNodeDialog';
-import { exportToPng, exportToPdf } from '../utils/export';
+import { exportToPng, exportToPdf, exportToJson, importFromJson } from '../utils/export';
 
 const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
 
@@ -17,6 +17,7 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
   const [showAddNode, setShowAddNode] = useState(false);
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeEdgeType = useGraphStore((s) => s.activeEdgeType);
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
@@ -24,6 +25,18 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
   const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
 
   const activeStyle = EDGE_STYLES[activeEdgeType];
+
+  const handleImportJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await importFromJson(file);
+    } catch (err) {
+      console.error('Failed to import JSON:', err);
+    }
+    // Reset so the same file can be re-imported
+    e.target.value = '';
+  };
 
   return (
     <>
@@ -116,6 +129,27 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
                 <FileText size={14} />
                 Export as PDF
               </button>
+              <button
+                onClick={() => {
+                  setShowExportDropdown(false);
+                  exportToJson();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+              >
+                <FileJson size={14} />
+                Export as JSON
+              </button>
+              <hr className="border-gray-200 dark:border-gray-700" />
+              <button
+                onClick={() => {
+                  setShowExportDropdown(false);
+                  fileInputRef.current?.click();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+              >
+                <Upload size={14} />
+                Import from JSON
+              </button>
             </div>
           )}
         </div>
@@ -140,6 +174,15 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
           />
         </div>
       </div>
+
+      {/* Hidden file input for JSON import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleImportJson}
+      />
 
       {showAddNode && <AddNodeDialog onClose={() => setShowAddNode(false)} />}
     </>

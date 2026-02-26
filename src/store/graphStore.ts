@@ -36,6 +36,9 @@ interface GraphState {
 
   // Search
   setSearchQuery: (q: string) => void;
+
+  // Import / export
+  loadGraph: (nodes: AnodiNode[], edges: AnodiEdge[]) => void;
 }
 
 let nodeCounter = 1;
@@ -107,4 +110,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   selectNode: (id) => set({ selectedNodeId: id }),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  loadGraph: (nodes, edges) => {
+    // Reset counter based on imported node IDs to avoid collisions
+    const maxId = nodes.reduce((max, n) => {
+      const match = n.id.match(/^node-(\d+)$/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    nodeCounter = maxId + 1;
+    set({ nodes, edges, selectedNodeId: null, searchQuery: '' });
+  },
 }));
