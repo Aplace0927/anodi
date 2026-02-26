@@ -1,9 +1,10 @@
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import { getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { AnodiNode, AnodiEdge } from '../types';
 import { useGraphStore } from '../store/graphStore';
 
-// ── PNG export ──────────────────────────────────────────────────────
+// ── Shared helpers ──────────────────────────────────────────────────
 
 /** Maximum dimension (width or height) in pixels for PNG export. */
 const MAX_PNG_DIMENSION = 4096;
@@ -12,24 +13,61 @@ function getFlowElement(): HTMLElement | null {
   return document.querySelector('.react-flow__viewport') as HTMLElement | null;
 }
 
+/** Detect current theme and return a suitable background colour. */
+function themeBgColor(): string {
+  return document.documentElement.classList.contains('dark')
+    ? '#030712'
+    : '#f3f4f6';
+}
+
+/**
+ * Compute the viewport dimensions and transform needed to fit every node
+ * into the output image.  Returns `null` when there is nothing to render.
+ */
+function computeFitViewport(padding = 0.1) {
+  const { nodes } = useGraphStore.getState();
+  if (nodes.length === 0) return null;
+
+  const bounds = getNodesBounds(nodes);
+  if (bounds.width === 0 || bounds.height === 0) return null;
+
+  // Guarantee a minimum padding of 50 px on each side
+  const minPad = 50;
+  const imageWidth = Math.max(bounds.width * (1 + padding * 2), bounds.width + minPad * 2);
+  const imageHeight = Math.max(bounds.height * (1 + padding * 2), bounds.height + minPad * 2);
+
+  const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.5, 2, padding);
+
+  return { imageWidth, imageHeight, viewport };
+}
+
+// ── PNG export ──────────────────────────────────────────────────────
+
 export async function exportToPng() {
   const el = getFlowElement();
   if (!el) return;
 
-  const rect = el.getBoundingClientRect();
-  const baseWidth = rect.width;
-  const baseHeight = rect.height;
+  const fit = computeFitViewport();
+  if (!fit) return;
 
-  // Determine a pixel ratio that keeps both dimensions ≤ MAX_PNG_DIMENSION
+  const { imageWidth, imageHeight, viewport } = fit;
+
+  // Keep both dimensions ≤ MAX_PNG_DIMENSION
   const pixelRatio = Math.max(
-    0.5, // floor at 0.5× to avoid tiny images
-    Math.min(2, MAX_PNG_DIMENSION / baseWidth, MAX_PNG_DIMENSION / baseHeight)
+    0.5,
+    Math.min(2, MAX_PNG_DIMENSION / imageWidth, MAX_PNG_DIMENSION / imageHeight),
   );
 
   const dataUrl = await toPng(el, {
-    backgroundColor: '#030712',
-    quality: 1,
+    backgroundColor: themeBgColor(),
+    width: imageWidth,
+    height: imageHeight,
     pixelRatio,
+    style: {
+      width: `${imageWidth}px`,
+      height: `${imageHeight}px`,
+      transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+    },
   });
 
   const link = document.createElement('a');
@@ -38,37 +76,41 @@ export async function exportToPng() {
   link.click();
 }
 
-// ── PDF export (rendered HTML) ──────────────────────────────────────
+// ── PDF export ──────────────────────────────────────────────────────
 
 export async function exportToPdf() {
   const el = getFlowElement();
   if (!el) return;
 
-  const rect = el.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-  const orientation = width > height ? 'landscape' : 'portrait';
+  const fit = computeFitViewport();
+  if (!fit) return;
 
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'px',
-    format: [width, height],
-    hotfixes: ['px_scaling'],
-  });
+  const { imageWidth, imageHeight, viewport } = fit;
+  const bgColor = themeBgColor();
 
-  await pdf.html(el, {
-    x: 0,
-    y: 0,
-    width,
-    windowWidth: width,
-    html2canvas: {
-      scale: 2,
-      backgroundColor: '#030712',
-      useCORS: true,
-      logging: false,
+  // Render the viewport with all nodes visible at the correct scale
+  const dataUrl = await toPng(el, {
+    backgroundColor: bgColor,
+    width: imageWidth,
+    height: imageHeight,
+    pixelRatio: 2,
+    style: {
+      width: `${imageWidth}px`,
+      height: `${imageHeight}px`,
+      transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
     },
   });
 
+  // Create a single-page PDF sized to the content
+  const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
+  const pdf = new jsPDF({
+    orientation,
+    unit: 'px',
+    format: [imageWidth, imageHeight],
+    hotfixes: ['px_scaling'],
+  });
+
+  pdf.addImage(dataUrl, 'PNG', 0, 0, imageWidth, imageHeight);
   pdf.save('anodi-board.pdf');
 }
 
