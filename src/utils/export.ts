@@ -30,15 +30,10 @@ export async function exportToPng() {
   const baseHeight = rect.height;
 
   // Determine a pixel ratio that keeps both dimensions ≤ MAX_PNG_DIMENSION
-  let pixelRatio = 2;
-  if (baseWidth * pixelRatio > MAX_PNG_DIMENSION || baseHeight * pixelRatio > MAX_PNG_DIMENSION) {
-    pixelRatio = Math.min(
-      MAX_PNG_DIMENSION / baseWidth,
-      MAX_PNG_DIMENSION / baseHeight,
-      2
-    );
-    pixelRatio = Math.max(pixelRatio, 0.5); // floor at 0.5× to avoid tiny images
-  }
+  const pixelRatio = Math.max(
+    0.5, // floor at 0.5× to avoid tiny images
+    Math.min(2, MAX_PNG_DIMENSION / baseWidth, MAX_PNG_DIMENSION / baseHeight)
+  );
 
   const dataUrl = await toPng(el, {
     backgroundColor: '#030712',
@@ -54,7 +49,8 @@ export async function exportToPng() {
 
 // ── PDF export (vector-based) ───────────────────────────────────────
 
-/** Padding around all nodes in PDF coordinates. */
+/** Maximum rows rendered for a memory node in PDF to prevent excessively tall output. */
+const MAX_MEMORY_PDF_ROWS = 32;
 const PDF_PADDING = 40;
 const PDF_FONT = 'helvetica';
 
@@ -218,7 +214,7 @@ function drawMemoryNode(pdf: jsPDF, x: number, y: number, data: MemoryLayoutData
   const baseAddr = parseInt(data.baseAddress, 16) || 0;
   const endAddr = parseInt(data.endAddress, 16) || baseAddr + 0x100;
   const unitSize = data.unitSize || 8;
-  const numRows = Math.min(Math.ceil((endAddr - baseAddr) / unitSize), 32); // cap rows
+  const numRows = Math.min(Math.ceil((endAddr - baseAddr) / unitSize), MAX_MEMORY_PDF_ROWS);
   const nodeH = headerH + numRows * rowH + 12;
 
   const bgColor = '#111827';
@@ -278,22 +274,32 @@ function drawNode(pdf: jsPDF, node: AnodiNode) {
   }
 }
 
+/** Compute the approximate dimensions of a node. */
+function nodeDimensions(node: AnodiNode): { w: number; h: number } {
+  const data = node.data as NodeData;
+  if (data.kind === 'source') {
+    const lines = ((data as SourceCodeData).code || '').split('\n');
+    return { w: 260, h: 28 + Math.max(lines.length, 1) * 14 + 8 };
+  } else if (data.kind === 'class') {
+    const d = data as ClassDiagramData;
+    const rowH = 13, sectionGap = 4;
+    const fieldsH = d.fields.length > 0 ? d.fields.length * rowH + sectionGap * 2 : 0;
+    const methodsH = d.methods.length > 0 ? d.methods.length * rowH + sectionGap * 2 : 0;
+    const emptyH = d.fields.length === 0 && d.methods.length === 0 ? 20 : 0;
+    return { w: 180, h: 32 + fieldsH + methodsH + emptyH + 8 };
+  } else if (data.kind === 'memory') {
+    const d = data as MemoryLayoutData;
+    const baseAddr = parseInt(d.baseAddress, 16) || 0;
+    const endAddr = parseInt(d.endAddress, 16) || baseAddr + 0x100;
+    const numRows = Math.min(Math.ceil((endAddr - baseAddr) / (d.unitSize || 8)), MAX_MEMORY_PDF_ROWS);
+    return { w: 240, h: 32 + numRows * 14 + 12 };
+  }
+  return { w: 200, h: 100 };
+}
+
 /** Compute the approximate bounding box centre of a node. */
 function nodeCenter(node: AnodiNode): { cx: number; cy: number } {
-  // Use rough estimates since we don't have rendered dimensions in vector mode
-  const data = node.data as NodeData;
-  let w = 200;
-  let h = 100;
-  if (data.kind === 'source') {
-    w = 260;
-    h = 28 + Math.max(((data as SourceCodeData).code || '').split('\n').length, 1) * 14 + 8;
-  } else if (data.kind === 'class') {
-    w = 180;
-    h = 60;
-  } else if (data.kind === 'memory') {
-    w = 240;
-    h = 80;
-  }
+  const { w, h } = nodeDimensions(node);
   return { cx: node.position.x + w / 2, cy: node.position.y + h / 2 };
 }
 
@@ -350,10 +356,11 @@ export async function exportToPdf() {
   // Compute bounding box of all nodes
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   nodes.forEach((n) => {
+    const { w, h } = nodeDimensions(n);
     minX = Math.min(minX, n.position.x);
     minY = Math.min(minY, n.position.y);
-    maxX = Math.max(maxX, n.position.x + 300); // approximate node width
-    maxY = Math.max(maxY, n.position.y + 200); // approximate node height
+    maxX = Math.max(maxX, n.position.x + w);
+    maxY = Math.max(maxY, n.position.y + h);
   });
 
   const totalW = maxX - minX + PDF_PADDING * 2;
@@ -423,8 +430,8 @@ export function importFromJson(file: File): Promise<void> {
       try {
         const text = reader.result as string;
         const payload = JSON.parse(text) as AnodiGraphJson;
-        if (!payload.nodes || !payload.edges) {
-          throw new Error('Invalid anodi JSON: missing nodes or edges');
+        if (!Array.isArray(payload.nodes) || !Array.isArray(payload.edges)) {
+          throw new Error('Invalid anodi JSON: missing or malformed nodes/edges');
         }
         useGraphStore.getState().loadGraph(payload.nodes, payload.edges);
         resolve();

@@ -117,7 +117,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       const match = n.id.match(/^node-(\d+)$/);
       return match ? Math.max(max, parseInt(match[1], 10)) : max;
     }, 0);
-    nodeCounter = maxId + 1;
+    // If no standard IDs were found, use current timestamp to avoid collisions
+    nodeCounter = maxId > 0 ? maxId + 1 : Date.now();
     set({ nodes, edges, selectedNodeId: null, searchQuery: '' });
   },
 }));
