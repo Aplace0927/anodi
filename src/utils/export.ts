@@ -85,8 +85,8 @@ export async function exportToPng() {
 // ── PDF export ──────────────────────────────────────────────────────
 
 export async function exportToPdf() {
-  const flowWrapper = document.querySelector('.react-flow') as HTMLElement | null;
-  if (!flowWrapper) return;
+  const reactFlowEl = document.querySelector('.react-flow') as HTMLElement | null;
+  if (!reactFlowEl) return;
 
   const fit = computeFitViewport();
   if (!fit) return;
@@ -104,14 +104,14 @@ export async function exportToPdf() {
   });
 
   // Render actual HTML into the PDF via html2canvas (no image capture)
-  await pdf.html(flowWrapper, {
+  await pdf.html(reactFlowEl, {
     x: 0,
     y: 0,
     width: imageWidth,
     windowWidth: imageWidth,
     autoPaging: false,
     html2canvas: {
-      scale: 1,
+      scale: 2,
       backgroundColor: bgColor,
       useCORS: true,
       logging: false,
@@ -135,8 +135,8 @@ export async function exportToPdf() {
         // Hide interactive UI elements from the export
         clonedDoc
           .querySelectorAll('.react-flow__controls, .react-flow__minimap, .react-flow__attribution')
-          .forEach((el) => {
-            (el as HTMLElement).style.display = 'none';
+          .forEach((uiEl) => {
+            (uiEl as HTMLElement).style.display = 'none';
           });
       },
     },
