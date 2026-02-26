@@ -9,6 +9,13 @@ import { useGraphStore } from '../store/graphStore';
 /** Maximum dimension (width or height) in pixels for PNG export. */
 const MAX_PNG_DIMENSION = 4096;
 
+/** Minimum padding (px) around content in exported images. */
+const MIN_PADDING_PX = 50;
+
+/** Zoom constraints for the fitted viewport. */
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+
 function getFlowElement(): HTMLElement | null {
   return document.querySelector('.react-flow__viewport') as HTMLElement | null;
 }
@@ -31,12 +38,11 @@ function computeFitViewport(padding = 0.1) {
   const bounds = getNodesBounds(nodes);
   if (bounds.width === 0 || bounds.height === 0) return null;
 
-  // Guarantee a minimum padding of 50 px on each side
-  const minPad = 50;
-  const imageWidth = Math.max(bounds.width * (1 + padding * 2), bounds.width + minPad * 2);
-  const imageHeight = Math.max(bounds.height * (1 + padding * 2), bounds.height + minPad * 2);
+  // Guarantee a minimum padding on each side
+  const imageWidth = Math.max(bounds.width * (1 + padding * 2), bounds.width + MIN_PADDING_PX * 2);
+  const imageHeight = Math.max(bounds.height * (1 + padding * 2), bounds.height + MIN_PADDING_PX * 2);
 
-  const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.5, 2, padding);
+  const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, MIN_ZOOM, MAX_ZOOM, padding);
 
   return { imageWidth, imageHeight, viewport };
 }
