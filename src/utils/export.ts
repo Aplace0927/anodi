@@ -95,7 +95,11 @@ export async function exportToPdf() {
   const bgColor = themeBgColor();
 
   // Render the viewport with html-to-image (same capture path as PNG
-  // export, which handles React Flow reliably).
+  // export).  toPng serialises the live DOM into an SVG foreignObject and
+  // rasterises it in one step, preserving all computed styles.  Earlier
+  // attempts using pdf.html()+html2canvas failed because html2canvas
+  // cannot resolve React Flow's CSS transforms and Tailwind utilities
+  // inside its cloned, detached DOM.
   const dataUrl = await toPng(el, {
     backgroundColor: bgColor,
     width: imageWidth,
