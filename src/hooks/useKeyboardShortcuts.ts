@@ -27,16 +27,17 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
         target.isContentEditable;
 
       const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
 
       // Undo: Cmd/Ctrl + Z (without Shift)
-      if (mod && e.key === 'z' && !e.shiftKey) {
+      if (mod && key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
         return;
       }
 
       // Redo: Cmd/Ctrl + Shift + Z  OR  Cmd/Ctrl + Y
-      if ((mod && e.key === 'z' && e.shiftKey) || (mod && e.key === 'y')) {
+      if ((mod && key === 'z' && e.shiftKey) || (mod && key === 'y')) {
         e.preventDefault();
         redo();
         return;
@@ -46,7 +47,7 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
       if (isInput) return;
 
       // Add node: N
-      if (e.key === 'n' && !mod) {
+      if (key === 'n' && !mod) {
         e.preventDefault();
         onOpenAddNode();
         return;
@@ -85,7 +86,7 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
       }
 
       // Select all: Cmd/Ctrl + A
-      if (mod && e.key === 'a') {
+      if (mod && key === 'a') {
         e.preventDefault();
         const changes = nodes.map((n) => ({
           type: 'select' as const,

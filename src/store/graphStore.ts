@@ -170,23 +170,23 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, nodes, edges } = get();
+    const { past, future, nodes, edges } = get();
     if (past.length === 0) return;
     const previous = past[past.length - 1];
     set({
       past: past.slice(0, -1),
-      future: [{ nodes, edges }, ...get().future],
+      future: [{ nodes, edges }, ...future],
       nodes: previous.nodes,
       edges: previous.edges,
     });
   },
 
   redo: () => {
-    const { future, nodes, edges } = get();
+    const { past, future, nodes, edges } = get();
     if (future.length === 0) return;
     const next = future[0];
     set({
-      past: [...get().past, { nodes, edges }],
+      past: [...past, { nodes, edges }],
       future: future.slice(1),
       nodes: next.nodes,
       edges: next.edges,
