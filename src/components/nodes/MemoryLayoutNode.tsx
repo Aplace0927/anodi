@@ -919,7 +919,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
   return (
     <div
-      className={`rounded-lg border-2 bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-lg transition-all ${
+      className={`anodi-export-node rounded-lg border-2 bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-lg transition-all ${
         selected
           ? customColor
             ? "shadow-lg"
@@ -978,7 +978,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       {/* Header */}
 
       <div
-        className={`flex items-center rounded-t-lg px-3 ${customColor ? '' : 'bg-orange-800'}`}
+        className={`anodi-export-data flex items-center rounded-t-lg px-3 ${customColor ? '' : 'bg-orange-800'}`}
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <div className="flex-1 overflow-hidden">
@@ -1034,7 +1034,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
         <>
           {/* Hex table */}
 
-          <div className="mx-1 mb-1 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
+          <div className="anodi-export-data mx-1 mb-1 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
         {rowItems.length === 0 && (
           <div
             className="px-2 text-[10px] italic text-gray-500"

@@ -120,7 +120,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
 
   return (
     <div
-      className={`rounded-lg border-2 bg-white text-gray-900 shadow-lg transition-all dark:bg-gray-900 dark:text-white ${
+      className={`anodi-export-node rounded-lg border-2 bg-white text-gray-900 shadow-lg transition-all dark:bg-gray-900 dark:text-white ${
         selected
           ? customColor
             ? 'shadow-lg'
@@ -164,7 +164,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
 
       {/* Header */}
       <div
-        className={`flex items-center gap-2 rounded-t-lg px-3 ${customColor ? '' : 'bg-gray-200 dark:bg-gray-800'}`}
+        className={`anodi-export-data flex items-center gap-2 rounded-t-lg px-3 ${customColor ? '' : 'bg-gray-200 dark:bg-gray-800'}`}
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <span
@@ -276,7 +276,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         </div>
       ) : (
         /* ── View mode: Code lines ────────────────────────────────── */
-        <div className="mx-1 mb-2 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
+        <div className="anodi-export-data mx-1 mb-2 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
           {items.length === 0 && (
             <div
               className="flex items-center px-2 text-[10px] italic text-gray-500"

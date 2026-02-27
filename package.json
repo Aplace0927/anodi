@@ -11,12 +11,14 @@
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "@xyflow/react": "^12.3.6",
+    "dom-to-svg": "^0.12.2",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.0",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-syntax-highlighter": "^16.1.0",
+    "svg2pdf.js": "^2.7.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
