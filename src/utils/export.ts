@@ -86,6 +86,44 @@ export async function exportToPng() {
 
 // ── PDF export ──────────────────────────────────────────────────────
 
+/** Individual font names that indicate a monospace family. */
+const MONO_NAMES = new Set([
+  'monospace', 'courier', 'courier new', 'consolas', 'menlo',
+  'monaco', 'sfmono-regular', 'ui-monospace', 'liberation mono',
+]);
+/** Individual font names that indicate a serif family (generic "serif" only). */
+const SERIF_NAMES = new Set([
+  'serif', 'times', 'times new roman', 'georgia',
+]);
+
+/**
+ * Classify a CSS font-family value into a standard PDF font name.
+ * Splits on commas and checks each individual name so that
+ * `sans-serif` is never confused with `serif`.
+ */
+function classifyFontFamily(ff: string): 'Courier' | 'Times' | 'Helvetica' {
+  const names = ff.split(',').map((s) => s.trim().replace(/['"]/g, '').toLowerCase());
+  if (names.some((n) => MONO_NAMES.has(n))) return 'Courier';
+  if (names.some((n) => SERIF_NAMES.has(n))) return 'Times';
+  return 'Helvetica';
+}
+
+/**
+ * Walk every element in `root` and replace `font-family` inline-style
+ * values with the corresponding standard PDF font name so that
+ * svg2pdf.js can match them to jsPDF's built-in font registry.
+ */
+function normaliseFontsForPdf(root: Element): void {
+  const it = root.ownerDocument.createNodeIterator(root, NodeFilter.SHOW_ELEMENT);
+  let node: Node | null;
+  while ((node = it.nextNode())) {
+    const el = node as HTMLElement | SVGElement;
+    const ff = el.style?.fontFamily;
+    if (!ff) continue;
+    el.style.fontFamily = classifyFontFamily(ff);
+  }
+}
+
 export async function exportToPdf() {
   const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
   if (!flowEl) return;
@@ -132,7 +170,9 @@ export async function exportToPdf() {
   viewportEl.style.transform = origTransform;
   hiddenEls.forEach((el) => { el.style.display = ''; });
 
-  // ── Embed SVG as vector graphics in the PDF ─────────────────────
+  // ── Normalise fonts so svg2pdf.js maps them to built-in PDF fonts ─
+  normaliseFontsForPdf(svgDocument.documentElement);
+
   const svgElement = svgDocument.documentElement;
   svgElement.setAttribute('width', String(imageWidth));
   svgElement.setAttribute('height', String(imageHeight));
