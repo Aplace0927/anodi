@@ -155,7 +155,8 @@ export async function exportToPdf() {
   const canvas = document.createElement('canvas');
   canvas.width = imageWidth * scale;
   canvas.height = imageHeight * scale;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
