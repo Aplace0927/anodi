@@ -324,8 +324,27 @@ export default function DetailPanel() {
     );
   };
 
+  // ── Notepad panel ───────────────────────────────────────────────
+  const renderNotepadPanel = () => {
+    if (data.kind !== 'notepad') return null;
+    return (
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Content</label>
+          <textarea
+            value={data.content}
+            onChange={(e) => updateNodeData(node.id, { content: e.target.value })}
+            placeholder="Write your notes…"
+            rows={8}
+            className="w-full rounded border border-gray-300 bg-gray-100 px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+      </div>
+    );
+  };
+
   const kindLabel =
-    data.kind === 'source' ? 'Source Code' : data.kind === 'class' ? 'Class Diagram' : 'Memory Layout';
+    data.kind === 'source' ? 'Source Code' : data.kind === 'class' ? 'Class Diagram' : data.kind === 'notepad' ? 'Notepad' : 'Memory Layout';
 
   return (
     <div className="flex h-full w-80 flex-col border-l border-gray-300 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
@@ -363,6 +382,7 @@ export default function DetailPanel() {
         {renderSourcePanel()}
         {renderClassPanel()}
         {renderMemoryPanel()}
+        {renderNotepadPanel()}
       </div>
 
       {/* Connected edges */}

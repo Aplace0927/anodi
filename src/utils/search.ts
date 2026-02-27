@@ -70,6 +70,16 @@ export function searchNodes(nodes: AnodiNode[], query: string): SearchMatch[] {
           context: hits.slice(0, 3).join(' · ') || 'Memory layout',
         });
       }
+    } else if (data.kind === 'notepad') {
+      if (name.toLowerCase().includes(q) || (data.content ?? '').toLowerCase().includes(q)) {
+        const preview = (data.content ?? '').substring(0, 80);
+        results.push({
+          nodeId: node.id,
+          nodeName: name,
+          nodeKind: 'notepad',
+          context: preview || 'Empty notepad',
+        });
+      }
     }
   }
 

@@ -87,7 +87,14 @@ export interface MemoryLayoutData extends Record<string, unknown> {
   nodeColor?: string; // custom color for the node header/border
 }
 
-export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData;
+export interface NotepadData extends Record<string, unknown> {
+  kind: 'notepad';
+  content: string;
+  name?: string;
+  nodeColor?: string;
+}
+
+export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData | NotepadData;
 
 // ── Edge types ───────────────────────────────────────────────────
 
