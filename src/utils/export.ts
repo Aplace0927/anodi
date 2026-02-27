@@ -85,7 +85,7 @@ export async function exportToPng() {
 // ── PDF export ──────────────────────────────────────────────────────
 
 export async function exportToPdf() {
-  const reactFlowEl = document.querySelector('*') as HTMLElement | null;
+  const reactFlowEl = document.querySelector('.react-flow') as HTMLElement | null;
   if (!reactFlowEl) return;
 
   const fit = computeFitViewport();
@@ -103,7 +103,7 @@ export async function exportToPdf() {
     hotfixes: ['px_scaling'],
   });
 
-  // Render actual HTML into the PDF via html2canvas (no image capture)
+  // Render actual HTML into the PDF via pdf.html()
   await pdf.html(reactFlowEl, {
     x: 0,
     y: 0,
@@ -118,7 +118,7 @@ export async function exportToPdf() {
       width: imageWidth,
       height: imageHeight,
       onclone: (clonedDoc: Document) => {
-        // Resize the cloned container to fit all content
+        // Resize the cloned .react-flow container to match the computed bounds
         const clonedWrapper = clonedDoc.querySelector('.react-flow') as HTMLElement;
         if (clonedWrapper) {
           clonedWrapper.style.width = `${imageWidth}px`;
@@ -126,15 +126,25 @@ export async function exportToPdf() {
         }
 
         // Apply the computed viewport transform so every node is visible
+        // at the same location and zoom level
         const clonedViewport = clonedDoc.querySelector('.react-flow__viewport') as HTMLElement;
         if (clonedViewport) {
           clonedViewport.style.transform =
             `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
         }
 
-        // Hide interactive UI elements from the export
+        // Ensure all tagged export elements (nodes, edges, data) remain visible
         clonedDoc
-          .querySelectorAll('.react-flow__controls, .react-flow__minimap, .react-flow__attribution')
+          .querySelectorAll('.anodi-export-node, .anodi-export-edge, .anodi-export-data')
+          .forEach((el) => {
+            (el as HTMLElement).style.opacity = '1';
+          });
+
+        // Hide interactive UI elements that should not appear in the PDF
+        clonedDoc
+          .querySelectorAll(
+            '.react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel'
+          )
           .forEach((uiEl) => {
             (uiEl as HTMLElement).style.display = 'none';
           });
