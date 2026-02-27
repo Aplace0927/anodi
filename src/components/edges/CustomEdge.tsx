@@ -51,7 +51,7 @@ const CustomEdge = memo(
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
             }}
-            className="nodrag nopan"
+            className="anodi-export-edge nodrag nopan"
           >
             <span
               className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow"

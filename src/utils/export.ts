@@ -1,5 +1,6 @@
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import { elementToSVG, inlineResources } from 'dom-to-svg';
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { AnodiNode, AnodiEdge } from '../types';
 import { useGraphStore } from '../store/graphStore';
@@ -84,9 +85,21 @@ export async function exportToPng() {
 
 // ── PDF export ──────────────────────────────────────────────────────
 
+/**
+ * Load an image from a URL and return the HTMLImageElement.
+ */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 export async function exportToPdf() {
-  const reactFlowEl = document.querySelector('*') as HTMLElement | null;
-  if (!reactFlowEl) return;
+  const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
+  if (!flowEl) return;
 
   const fit = computeFitViewport();
   if (!fit) return;
@@ -94,7 +107,62 @@ export async function exportToPdf() {
   const { imageWidth, imageHeight, viewport } = fit;
   const bgColor = themeBgColor();
 
-  // Create a single-page PDF sized to the content
+  // ── Snapshot the viewport element via dom-to-svg ──────────────────
+  const viewportEl = flowEl.querySelector('.react-flow__viewport') as HTMLElement | null;
+  if (!viewportEl) return;
+
+  // Save originals so we can restore after capture
+  const origFlowW = flowEl.style.width;
+  const origFlowH = flowEl.style.height;
+  const origTransform = viewportEl.style.transform;
+
+  // Temporarily resize the container and set the fitted transform
+  flowEl.style.width = `${imageWidth}px`;
+  flowEl.style.height = `${imageHeight}px`;
+  viewportEl.style.transform =
+    `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+
+  // Hide interactive UI elements
+  const uiSelectors = '.react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__background';
+  const hiddenEls: HTMLElement[] = [];
+  flowEl.querySelectorAll(uiSelectors).forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    if (htmlEl.style.display !== 'none') {
+      hiddenEls.push(htmlEl);
+      htmlEl.style.display = 'none';
+    }
+  });
+
+  // Capture the flow element (with nodes, edges, data) to SVG
+  const svgDocument = elementToSVG(flowEl);
+  await inlineResources(svgDocument.documentElement);
+
+  // Restore original styles
+  flowEl.style.width = origFlowW;
+  flowEl.style.height = origFlowH;
+  viewportEl.style.transform = origTransform;
+  hiddenEls.forEach((el) => { el.style.display = ''; });
+
+  // ── Convert SVG → PNG via canvas ────────────────────────────────
+  const svgString = new XMLSerializer().serializeToString(svgDocument);
+  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  const scale = 2;
+  const img = await loadImage(svgUrl);
+  URL.revokeObjectURL(svgUrl);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = imageWidth * scale;
+  canvas.height = imageHeight * scale;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const pngData = canvas.toDataURL('image/png');
+
+  // ── Build single-page PDF sized to the board ────────────────────
   const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
   const pdf = new jsPDF({
     orientation,
@@ -103,45 +171,7 @@ export async function exportToPdf() {
     hotfixes: ['px_scaling'],
   });
 
-  // Render actual HTML into the PDF via html2canvas (no image capture)
-  await pdf.html(reactFlowEl, {
-    x: 0,
-    y: 0,
-    width: imageWidth,
-    windowWidth: imageWidth,
-    autoPaging: false,
-    html2canvas: {
-      scale: 2,
-      backgroundColor: bgColor,
-      useCORS: true,
-      logging: false,
-      width: imageWidth,
-      height: imageHeight,
-      onclone: (clonedDoc: Document) => {
-        // Resize the cloned container to fit all content
-        const clonedWrapper = clonedDoc.querySelector('.react-flow') as HTMLElement;
-        if (clonedWrapper) {
-          clonedWrapper.style.width = `${imageWidth}px`;
-          clonedWrapper.style.height = `${imageHeight}px`;
-        }
-
-        // Apply the computed viewport transform so every node is visible
-        const clonedViewport = clonedDoc.querySelector('.react-flow__viewport') as HTMLElement;
-        if (clonedViewport) {
-          clonedViewport.style.transform =
-            `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
-        }
-
-        // Hide interactive UI elements from the export
-        clonedDoc
-          .querySelectorAll('.react-flow__controls, .react-flow__minimap, .react-flow__attribution')
-          .forEach((uiEl) => {
-            (uiEl as HTMLElement).style.display = 'none';
-          });
-      },
-    },
-  });
-
+  pdf.addImage(pngData, 'PNG', 0, 0, imageWidth, imageHeight);
   pdf.save('anodi-board.pdf');
 }
 
