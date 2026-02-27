@@ -86,32 +86,17 @@ export async function exportToPng() {
 
 // ── PDF export ──────────────────────────────────────────────────────
 
-/** Individual font names that indicate a monospace family. */
+/** Font names that indicate a monospace family. */
 const MONO_NAMES = new Set([
   'monospace', 'courier', 'courier new', 'consolas', 'menlo',
   'monaco', 'sfmono-regular', 'ui-monospace', 'liberation mono',
+  'jetbrains mono',
 ]);
-/** Individual font names that indicate a serif family (generic "serif" only). */
-const SERIF_NAMES = new Set([
-  'serif', 'times', 'times new roman', 'georgia',
-]);
-
-/**
- * Classify a CSS font-family value into a standard PDF font name.
- * Splits on commas and checks each individual name so that
- * `sans-serif` is never confused with `serif`.
- */
-function classifyFontFamily(ff: string): 'Courier' | 'Times' | 'Helvetica' {
-  const names = ff.split(',').map((s) => s.trim().replace(/['"]/g, '').toLowerCase());
-  if (names.some((n) => MONO_NAMES.has(n))) return 'Courier';
-  if (names.some((n) => SERIF_NAMES.has(n))) return 'Times';
-  return 'Helvetica';
-}
 
 /**
  * Walk every element in `root` and replace `font-family` inline-style
- * values with the corresponding standard PDF font name so that
- * svg2pdf.js can match them to jsPDF's built-in font registry.
+ * values with the embedded font name so that svg2pdf.js can resolve
+ * them against jsPDF's font registry.
  */
 function normaliseFontsForPdf(root: Element): void {
   const it = root.ownerDocument.createNodeIterator(root, NodeFilter.SHOW_ELEMENT);
@@ -120,8 +105,37 @@ function normaliseFontsForPdf(root: Element): void {
     const el = node as HTMLElement | SVGElement;
     const ff = el.style?.fontFamily;
     if (!ff) continue;
-    el.style.fontFamily = classifyFontFamily(ff);
+
+    const names = ff.split(',').map((s) => s.trim().replace(/['"]/g, '').toLowerCase());
+    el.style.fontFamily = names.some((n) => MONO_NAMES.has(n))
+      ? 'JetBrains Mono'
+      : 'Inter';
   }
+}
+
+/** Convert an ArrayBuffer to a base64-encoded string. */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunks: string[] = [];
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+  }
+  return btoa(chunks.join(''));
+}
+
+/** Fetch a TTF file from `public/fonts/` and register it in jsPDF's VFS. */
+async function embedFont(
+  pdf: jsPDF,
+  url: string,
+  vfsName: string,
+  fontFamily: string,
+  style: string,
+): Promise<void> {
+  const res = await fetch(url);
+  const buf = await res.arrayBuffer();
+  pdf.addFileToVFS(vfsName, arrayBufferToBase64(buf));
+  pdf.addFont(vfsName, fontFamily, style);
 }
 
 export async function exportToPdf() {
@@ -170,7 +184,7 @@ export async function exportToPdf() {
   viewportEl.style.transform = origTransform;
   hiddenEls.forEach((el) => { el.style.display = ''; });
 
-  // ── Normalise fonts so svg2pdf.js maps them to built-in PDF fonts ─
+  // ── Normalise fonts so svg2pdf.js maps them to embedded PDF fonts ─
   normaliseFontsForPdf(svgDocument.documentElement);
 
   const svgElement = svgDocument.documentElement;
@@ -184,6 +198,14 @@ export async function exportToPdf() {
     format: [imageWidth, imageHeight],
     hotfixes: ['px_scaling'],
   });
+
+  // Embed Inter and JetBrains Mono fonts so text renders correctly
+  await Promise.all([
+    embedFont(pdf, '/fonts/Inter-Regular.ttf', 'Inter-Regular.ttf', 'Inter', 'normal'),
+    embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-Bold.ttf', 'Inter', 'bold'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Regular.ttf', 'JetBrains Mono', 'normal'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf', 'JetBrains Mono', 'bold'),
+  ]);
 
   // Draw background
   pdf.setFillColor(bgColor);

@@ -9,8 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.2.8",
-    "@fontsource/jetbrains-mono": "^5.2.8",
     "@monaco-editor/react": "^4.6.0",
     "@xyflow/react": "^12.3.6",
     "dom-to-svg": "^0.12.2",
