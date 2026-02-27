@@ -1,5 +1,6 @@
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import 'svg2pdf.js';
 import { elementToSVG, inlineResources } from 'dom-to-svg';
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react';
 import type { AnodiNode, AnodiEdge } from '../types';
@@ -85,18 +86,6 @@ export async function exportToPng() {
 
 // ── PDF export ──────────────────────────────────────────────────────
 
-/**
- * Load an image from a URL and return the HTMLImageElement.
- */
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
 export async function exportToPdf() {
   const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
   if (!flowEl) return;
@@ -143,27 +132,11 @@ export async function exportToPdf() {
   viewportEl.style.transform = origTransform;
   hiddenEls.forEach((el) => { el.style.display = ''; });
 
-  // ── Convert SVG → PNG via canvas ────────────────────────────────
-  const svgString = new XMLSerializer().serializeToString(svgDocument);
-  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-  const svgUrl = URL.createObjectURL(svgBlob);
+  // ── Embed SVG as vector graphics in the PDF ─────────────────────
+  const svgElement = svgDocument.documentElement;
+  svgElement.setAttribute('width', String(imageWidth));
+  svgElement.setAttribute('height', String(imageHeight));
 
-  const scale = 2;
-  const img = await loadImage(svgUrl);
-  URL.revokeObjectURL(svgUrl);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = imageWidth * scale;
-  canvas.height = imageHeight * scale;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-  const pngData = canvas.toDataURL('image/png');
-
-  // ── Build single-page PDF sized to the board ────────────────────
   const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
   const pdf = new jsPDF({
     orientation,
@@ -172,7 +145,12 @@ export async function exportToPdf() {
     hotfixes: ['px_scaling'],
   });
 
-  pdf.addImage(pngData, 'PNG', 0, 0, imageWidth, imageHeight);
+  // Draw background
+  pdf.setFillColor(bgColor);
+  pdf.rect(0, 0, imageWidth, imageHeight, 'F');
+
+  // Add SVG as vector content (not rasterised)
+  await pdf.svg(svgElement, { x: 0, y: 0, width: imageWidth, height: imageHeight });
   pdf.save('anodi-board.pdf');
 }
 
