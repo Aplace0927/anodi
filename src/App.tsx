@@ -179,7 +179,8 @@ function AppInner() {
             <MiniMap
               className={theme === 'dark' ? '!border-gray-700 !bg-gray-800' : '!border-gray-300 !bg-gray-100'}
               nodeColor={(n) => {
-                const d = n.data as { kind?: string };
+                const d = n.data as { kind?: string; nodeColor?: string };
+                if (d.nodeColor) return d.nodeColor;
                 if (d.kind === 'source') return '#6366f1';
                 if (d.kind === 'class') return '#a855f7';
                 if (d.kind === 'notepad') return '#f59e0b';

@@ -43,6 +43,7 @@ interface GraphState {
   onConnect: (connection: Connection) => void;
   setActiveEdgeType: (type: EdgeRelationship) => void;
   swapEdgeDirection: (edgeId: string) => void;
+  updateEdgeRelationship: (edgeId: string, relationship: EdgeRelationship) => void;
 
   // Selection
   selectNode: (id: string | null) => void;
@@ -164,21 +165,28 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       future: [],
       edges: s.edges.map((e) => {
         if (e.id !== edgeId) return e;
-        // When swapping, map handle suffixes: source handles end with -right, target with -left
-        const mapHandle = (h: string | null | undefined): string | null => {
-          if (!h) return null;
-          if (h.endsWith('-right')) return h.replace(/-right$/, '-left');
-          if (h.endsWith('-left')) return h.replace(/-left$/, '-right');
-          return h;
-        };
+        // Only swap source/target; keep same handle IDs so the visual path stays the same.
+        // Each handle position exposes both source and target types, so the handles resolve correctly.
         return {
           ...e,
           source: e.target,
           target: e.source,
-          sourceHandle: mapHandle(e.targetHandle),
-          targetHandle: mapHandle(e.sourceHandle),
+          sourceHandle: e.targetHandle ?? null,
+          targetHandle: e.sourceHandle ?? null,
         };
       }),
+    }));
+  },
+
+  updateEdgeRelationship: (edgeId, relationship) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) =>
+        e.id === edgeId
+          ? { ...e, data: { ...e.data, relationship } as AnodiEdgeData }
+          : e
+      ),
     }));
   },
 

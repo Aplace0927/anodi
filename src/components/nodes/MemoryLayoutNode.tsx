@@ -994,6 +994,22 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           }}
         />
       ))}
+      {!dragging && rowPositions.map(({ label, top }) => (
+        <Handle
+          key={`addr-${label}-L-src`}
+          type="source"
+          position={Position.Left}
+          id={`addr-${label}-left`}
+          style={{
+            top,
+            transform: "translateY(-50%)",
+            background: "#6b7280",
+            width: 8,
+            height: 8,
+            opacity: 0,
+          }}
+        />
+      ))}
 
       {/* Right handles */}
 
@@ -1009,6 +1025,22 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             background: "#6b7280",
             width: 8,
             height: 8,
+          }}
+        />
+      ))}
+      {!dragging && rowPositions.map(({ label, top }) => (
+        <Handle
+          key={`addr-${label}-R-tgt`}
+          type="target"
+          position={Position.Right}
+          id={`addr-${label}-right`}
+          style={{
+            top,
+            transform: "translateY(-50%)",
+            background: "#6b7280",
+            width: 8,
+            height: 8,
+            opacity: 0,
           }}
         />
       ))}

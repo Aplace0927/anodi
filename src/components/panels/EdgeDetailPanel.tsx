@@ -1,8 +1,10 @@
 import { useCallback } from 'react';
 import { X, ArrowRightLeft } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
-import type { NodeData } from '../../types';
+import type { NodeData, EdgeRelationship } from '../../types';
 import { EDGE_STYLES } from '../../types';
+
+const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
 
 /** Describe a connection endpoint for display in the edge sidebar. */
 function describeEndpoint(
@@ -56,6 +58,7 @@ export default function EdgeDetailPanel() {
   const nodes = useGraphStore((s) => s.nodes);
   const selectEdge = useGraphStore((s) => s.selectEdge);
   const swapEdgeDirection = useGraphStore((s) => s.swapEdgeDirection);
+  const updateEdgeRelationship = useGraphStore((s) => s.updateEdgeRelationship);
 
   const edge = edges.find((e) => e.id === selectedEdgeId);
   const closePanel = useCallback(() => selectEdge(null), [selectEdge]);
@@ -138,17 +141,33 @@ export default function EdgeDetailPanel() {
         </button>
       </div>
 
-      {/* Relationship type */}
+      {/* Relationship type selector */}
       <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
         <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
           Relationship
         </label>
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block h-2.5 w-5 rounded-sm"
-            style={{ backgroundColor: style.color }}
-          />
-          <span className="text-sm text-gray-700 dark:text-gray-200">{style.label}</span>
+        <div className="flex gap-1.5">
+          {RELATIONSHIPS.map((r) => {
+            const s = EDGE_STYLES[r];
+            const isActive = r === rel;
+            return (
+              <button
+                key={r}
+                onClick={() => updateEdgeRelationship(edge.id, r)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs font-medium transition-all ${
+                  isActive
+                    ? 'border-gray-400 bg-gray-200 text-gray-900 dark:border-gray-500 dark:bg-gray-700 dark:text-white'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800'
+                }`}
+              >
+                <span
+                  className="inline-block h-2 w-4 rounded-sm"
+                  style={{ backgroundColor: s.color }}
+                />
+                {s.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
