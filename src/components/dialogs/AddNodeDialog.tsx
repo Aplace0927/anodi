@@ -5,11 +5,12 @@ import type { NodeData, SourceLanguage, MemoryUnitSize } from '../../types';
 
 interface Props {
   onClose: () => void;
+  getViewportCenter?: () => { x: number; y: number };
 }
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
 
-export default function AddNodeDialog({ onClose }: Props) {
+export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
   const addNode = useGraphStore((s) => s.addNode);
   const [nodeType, setNodeType] = useState<'source' | 'class' | 'memory' | 'notepad'>('source');
   const [name, setName] = useState('');
@@ -36,7 +37,7 @@ export default function AddNodeDialog({ onClose }: Props) {
         collapsedRanges: [],
       };
     }
-    addNode(n, data);
+    addNode(n, data, getViewportCenter?.());
     onClose();
   };
 

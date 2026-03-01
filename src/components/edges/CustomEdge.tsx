@@ -21,6 +21,7 @@ const CustomEdge = memo(
     targetPosition,
     data,
     selected,
+    markerEnd,
   }: Props) => {
     const rel = data?.relationship ?? 'call';
     const style = EDGE_STYLES[rel];
@@ -43,7 +44,7 @@ const CustomEdge = memo(
 
     return (
       <>
-        <BaseEdge id={id} path={edgePath} style={strokeStyle} />
+        <BaseEdge id={id} path={edgePath} style={strokeStyle} markerEnd={markerEnd} />
         <EdgeLabelRenderer>
           <div
             style={{

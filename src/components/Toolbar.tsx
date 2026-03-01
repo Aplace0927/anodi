@@ -14,9 +14,10 @@ interface ToolbarProps {
   toggleTheme: () => void;
   showAddNode: boolean;
   setShowAddNode: (v: boolean) => void;
+  getViewportCenter?: () => { x: number; y: number };
 }
 
-export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNode }: ToolbarProps) {
+export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNode, getViewportCenter }: ToolbarProps) {
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -212,7 +213,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
         onChange={handleImportJson}
       />
 
-      {showAddNode && <AddNodeDialog onClose={() => setShowAddNode(false)} />}
+      {showAddNode && <AddNodeDialog onClose={() => setShowAddNode(false)} getViewportCenter={getViewportCenter} />}
     </>
   );
 }

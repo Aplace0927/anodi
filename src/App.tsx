@@ -1,12 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
   BackgroundVariant,
+  useReactFlow,
+  ReactFlowProvider,
+  MarkerType,
 } from '@xyflow/react';
-import type { NodeMouseHandler } from '@xyflow/react';
+import type { NodeMouseHandler, EdgeMouseHandler } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { useGraphStore } from './store/graphStore';
@@ -17,6 +20,7 @@ import NotepadNode from './components/nodes/NotepadNode';
 import CustomEdge from './components/edges/CustomEdge';
 import Toolbar from './components/Toolbar';
 import DetailPanel from './components/panels/DetailPanel';
+import EdgeDetailPanel from './components/panels/EdgeDetailPanel';
 import SearchPanel from './components/panels/SearchPanel';
 import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
@@ -34,17 +38,32 @@ const edgeTypes = {
   custom: CustomEdge,
 };
 
-export default function App() {
+function AppInner() {
   const { theme, toggleTheme } = useTheme();
   const [showAddNode, setShowAddNode] = useState(false);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const selectedEdgeId = useGraphStore((s) => s.selectedEdgeId);
   const searchQuery = useGraphStore((s) => s.searchQuery);
   const onNodesChange = useGraphStore((s) => s.onNodesChange);
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
   const onConnect = useGraphStore((s) => s.onConnect);
   const selectNode = useGraphStore((s) => s.selectNode);
+  const selectEdge = useGraphStore((s) => s.selectEdge);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const reactFlowInstance = useReactFlow();
+
+  // Expose a helper to get the viewport center in flow coordinates
+  const getViewportCenter = useCallback(() => {
+    const wrapper = reactFlowWrapper.current;
+    if (!wrapper) return { x: 300, y: 300 };
+    const rect = wrapper.getBoundingClientRect();
+    return reactFlowInstance.screenToFlowPosition({
+      x: rect.width / 2,
+      y: rect.height / 2,
+    });
+  }, [reactFlowInstance]);
 
   // Compute search-matched node IDs
   const matchedIds = useMemo(() => {
@@ -87,7 +106,7 @@ export default function App() {
     });
   }, [nodes, selectedNodeId, neighborIds, matchedIds, searchQuery]);
 
-  // Annotate edges with highlight state
+  // Annotate edges with highlight state and arrow markers
   const styledEdges = useMemo((): AnodiEdge[] => {
     return edges.map((e) => {
       const isConnectedToSelected =
@@ -95,12 +114,19 @@ export default function App() {
       return {
         ...e,
         animated: isConnectedToSelected,
+        selected: e.id === selectedEdgeId,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 16,
+          height: 16,
+          color: e.data?.relationship === 'reference' ? '#22c55e' : e.data?.relationship === 'information' ? '#f97316' : '#3b82f6',
+        },
         style: {
           opacity: selectedNodeId && !isConnectedToSelected ? 0.2 : 1,
         },
       };
     });
-  }, [edges, selectedNodeId]);
+  }, [edges, selectedNodeId, selectedEdgeId]);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
@@ -109,9 +135,17 @@ export default function App() {
     [selectNode]
   );
 
+  const handleEdgeClick: EdgeMouseHandler = useCallback(
+    (_event, edge) => {
+      selectEdge(edge.id);
+    },
+    [selectEdge]
+  );
+
   const handlePaneClick = useCallback(() => {
     selectNode(null);
-  }, [selectNode]);
+    selectEdge(null);
+  }, [selectNode, selectEdge]);
 
   useKeyboardShortcuts({
     onOpenAddNode: useCallback(() => setShowAddNode(true), []),
@@ -119,11 +153,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
-      <Toolbar theme={theme} toggleTheme={toggleTheme} showAddNode={showAddNode} setShowAddNode={setShowAddNode} />
+      <Toolbar theme={theme} toggleTheme={toggleTheme} showAddNode={showAddNode} setShowAddNode={setShowAddNode} getViewportCenter={getViewportCenter} />
 
       <div className="relative flex flex-1 overflow-hidden" style={{ marginTop: 48 }}>
         {/* Canvas */}
-        <div className="flex-1">
+        <div className="flex-1" ref={reactFlowWrapper}>
           <ReactFlow<AnodiNode, AnodiEdge>
             nodes={styledNodes}
             edges={styledEdges}
@@ -133,6 +167,7 @@ export default function App() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={handleNodeClick}
+            onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
             fitView
             fitViewOptions={{ padding: 0.2 }}
@@ -159,7 +194,16 @@ export default function App() {
 
         {/* Detail panel */}
         {selectedNodeId && <DetailPanel />}
+        {selectedEdgeId && <EdgeDetailPanel />}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ReactFlowProvider>
+      <AppInner />
+    </ReactFlowProvider>
   );
 }
