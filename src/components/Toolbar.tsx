@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon } from 'lucide-react';
+import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon, Undo2, Redo2 } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
 import { EDGE_STYLES } from '../types';
@@ -7,14 +7,16 @@ import AddNodeDialog from './dialogs/AddNodeDialog';
 import { exportToPng, exportToPdf, exportToJson, importFromJson } from '../utils/export';
 
 const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
+const EDGE_SHORTCUT: Record<string, string> = { call: '1', reference: '2', information: '3' };
 
 interface ToolbarProps {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  showAddNode: boolean;
+  setShowAddNode: (v: boolean) => void;
 }
 
-export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
-  const [showAddNode, setShowAddNode] = useState(false);
+export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNode }: ToolbarProps) {
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,6 +25,10 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
   const searchQuery = useGraphStore((s) => s.searchQuery);
   const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
+  const undo = useGraphStore((s) => s.undo);
+  const redo = useGraphStore((s) => s.redo);
+  const past = useGraphStore((s) => s.past);
+  const future = useGraphStore((s) => s.future);
 
   const activeStyle = EDGE_STYLES[activeEdgeType];
 
@@ -50,10 +56,31 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
         <button
           onClick={() => setShowAddNode(true)}
           className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 active:scale-95 transition-all"
+          title="Add Node (N)"
         >
           <Plus size={15} />
           Add Node
         </button>
+
+        {/* Undo / Redo */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={undo}
+            disabled={past.length === 0}
+            className="flex items-center justify-center rounded-lg border border-gray-300 bg-gray-100 p-1.5 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 size={16} />
+          </button>
+          <button
+            onClick={redo}
+            disabled={future.length === 0}
+            className="flex items-center justify-center rounded-lg border border-gray-300 bg-gray-100 p-1.5 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 size={16} />
+          </button>
+        </div>
 
         {/* Edge type selector */}
         <div className="relative">
@@ -89,6 +116,7 @@ export default function Toolbar({ theme, toggleTheme }: ToolbarProps) {
                       style={{ backgroundColor: s.color }}
                     />
                     {s.label}
+                    <span className="ml-auto text-[10px] text-gray-400">{EDGE_SHORTCUT[rel]}</span>
                   </button>
                 );
               })}

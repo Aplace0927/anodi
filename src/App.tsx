@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -13,18 +13,21 @@ import { useGraphStore } from './store/graphStore';
 import SourceCodeNode from './components/nodes/SourceCodeNode';
 import ClassDiagramNode from './components/nodes/ClassDiagramNode';
 import MemoryLayoutNode from './components/nodes/MemoryLayoutNode';
+import NotepadNode from './components/nodes/NotepadNode';
 import CustomEdge from './components/edges/CustomEdge';
 import Toolbar from './components/Toolbar';
 import DetailPanel from './components/panels/DetailPanel';
 import SearchPanel from './components/panels/SearchPanel';
 import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { AnodiNode, AnodiEdge } from './types';
 
 const nodeTypes = {
   source: SourceCodeNode,
   class: ClassDiagramNode,
   memory: MemoryLayoutNode,
+  notepad: NotepadNode,
 };
 
 const edgeTypes = {
@@ -33,6 +36,7 @@ const edgeTypes = {
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const [showAddNode, setShowAddNode] = useState(false);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
@@ -109,9 +113,13 @@ export default function App() {
     selectNode(null);
   }, [selectNode]);
 
+  useKeyboardShortcuts({
+    onOpenAddNode: useCallback(() => setShowAddNode(true), []),
+  });
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
-      <Toolbar theme={theme} toggleTheme={toggleTheme} />
+      <Toolbar theme={theme} toggleTheme={toggleTheme} showAddNode={showAddNode} setShowAddNode={setShowAddNode} />
 
       <div className="relative flex flex-1 overflow-hidden" style={{ marginTop: 48 }}>
         {/* Canvas */}
@@ -139,6 +147,7 @@ export default function App() {
                 const d = n.data as { kind?: string };
                 if (d.kind === 'source') return '#6366f1';
                 if (d.kind === 'class') return '#a855f7';
+                if (d.kind === 'notepad') return '#f59e0b';
                 return '#f97316';
               }}
             />

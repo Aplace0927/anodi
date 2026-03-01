@@ -413,7 +413,7 @@ function CellForm({
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder={`0x${"0".repeat(padLen)}`}
-          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-300 focus:outline-none"
+          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-700 dark:text-green-300 focus:outline-none"
         />
       </div>
 
@@ -522,7 +522,7 @@ function CellForm({
                 setValue(sanitized);
               }}
               placeholder="255, 0xFF, 0b11111111, 0o377"
-              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-300 focus:outline-none ${
+              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-700 dark:text-green-300 focus:outline-none ${
                 intValueError
                   ? "border-red-500 ring-1 ring-red-500"
                   : "border-gray-300 dark:border-gray-600"
@@ -704,7 +704,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-[9px] text-green-300"
+          className="inline-block w-[18px] text-center font-mono text-[9px] text-green-700 dark:text-green-300"
           title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (integer)`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
@@ -919,7 +919,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
   return (
     <div
-      className={`anodi-export-node rounded-lg border-2 bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-lg transition-all ${
+      className={`anodi-export-node font-mono rounded-lg border-2 bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-lg transition-all ${
         selected
           ? customColor
             ? "shadow-lg"
@@ -1156,7 +1156,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                         {c.type === "hex" ? "H" : c.type === "text" ? "T" : c.type === "integer" ? "I" : "F"}
                       </span>
 
-                      <span className="font-mono text-green-400">
+                      <span className="font-mono text-green-700 dark:text-green-300">
                         {fmtHex(parseHexAddr(c.address), padLen)}
                       </span>
 

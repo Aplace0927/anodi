@@ -120,7 +120,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
 
   return (
     <div
-      className={`anodi-export-node rounded-lg border-2 bg-white text-gray-900 shadow-lg transition-all dark:bg-gray-900 dark:text-white ${
+      className={`anodi-export-node font-mono rounded-lg border-2 bg-white text-gray-900 shadow-lg transition-all dark:bg-gray-900 dark:text-white ${
         selected
           ? customColor
             ? 'shadow-lg'
