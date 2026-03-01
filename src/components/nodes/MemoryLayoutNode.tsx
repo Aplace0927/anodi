@@ -801,8 +801,29 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               return (
                 <div
                   key={i}
+                  className="flex items-center"
                   style={{ width: `${(seg.length / unitSize) * 100}%` }}
-                />
+                >
+                  {Array.from({ length: seg.length }, (_, j) => {
+                    const addr = seg.startAddr + j;
+                    const ann = byteMap.get(addr);
+                    let ch = ".";
+                    if (ann && (ann.type === "hex" || ann.type === "text" || ann.type === "integer")) {
+                      ch = ann.value >= 0x20 && ann.value < 0x7f
+                        ? String.fromCharCode(ann.value)
+                        : ".";
+                    }
+                    return (
+                      <span
+                        key={addr}
+                        className="text-center font-mono text-[9px] text-gray-500 dark:text-gray-400"
+                        style={{ width: `${(1 / seg.length) * 100}%` }}
+                      >
+                        {ch}
+                      </span>
+                    );
+                  })}
+                </div>
               );
             }
 
@@ -893,28 +914,45 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       );
     }
 
-    // ASCII for hex/text
+    // ASCII for hex/text – use proportional-width cells so that N bytes of
+    // text/hex occupy the same visual width as N bytes of a field annotation.
 
-    let ascii = "";
+    const chars: string[] = [];
 
     for (let i = 0; i < unitSize; i++) {
       const ann = byteMap.get(rowAddr + i);
 
       if (!ann) {
-        ascii += ".";
+        chars.push(".");
       } else if (ann.type === "hex" || ann.type === "text" || ann.type === "integer") {
-        ascii +=
+        chars.push(
           ann.value >= 0x20 && ann.value < 0x7f
             ? String.fromCharCode(ann.value)
-            : ".";
+            : ".",
+        );
       } else {
-        ascii += "·";
+        chars.push("·");
       }
     }
 
-    if (ascii.replace(/\./g, "") === "") return null;
+    if (chars.every((ch) => ch === ".")) return null;
 
-    return <span className="font-mono text-[9px] text-gray-500 dark:text-gray-400">{ascii}</span>;
+    return (
+      <div
+        className="flex w-full items-center"
+        style={{ height: ROW_H - 2 }}
+      >
+        {chars.map((ch, i) => (
+          <span
+            key={rowAddr + i}
+            className="text-center font-mono text-[9px] text-gray-500 dark:text-gray-400"
+            style={{ width: `${(1 / unitSize) * 100}%` }}
+          >
+            {ch}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -1089,13 +1127,13 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               {/* Annotation */}
 
               <div
-                className="flex items-center overflow-hidden"
-                style={{ height: ROW_H, width: ANNOTATION_COL_W }}
+                className="flex flex-1 min-w-0 items-center overflow-hidden"
+                style={{ height: ROW_H }}
               >
                 {renderRowAnnotation(item.addr)}
               </div>
 
-              {/* Delete button (edit mode) */}
+              {/* Delete button (edit mode) – always reserve space for consistent row width */}
 
               {isEditing &&
                 (() => {
@@ -1112,10 +1150,16 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                         removeCell(startingCell.id);
                       }}
                       className="ml-1 shrink-0 text-gray-600 hover:text-red-400"
+                      style={{ width: 9 }}
                     >
                       <Trash2 size={9} />
                     </button>
-                  ) : null;
+                  ) : (
+                    <span
+                      className="ml-1 shrink-0"
+                      style={{ width: 9 }}
+                    />
+                  );
                 })()}
             </div>
           );
