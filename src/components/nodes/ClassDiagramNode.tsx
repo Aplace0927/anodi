@@ -12,7 +12,7 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
 
   return (
     <div
-      className={`anodi-export-node w-52 rounded-lg border-2 bg-white shadow-lg transition-all dark:bg-gray-900 ${
+      className={`anodi-export-node font-sans w-52 rounded-lg border-2 bg-white shadow-lg transition-all dark:bg-gray-900 ${
         selected
           ? customColor
             ? 'shadow-lg'

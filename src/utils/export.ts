@@ -85,34 +85,6 @@ export async function exportToPng() {
 }
 
 // ── PDF export ──────────────────────────────────────────────────────
-
-/** Font names that indicate a monospace family. */
-const MONO_NAMES = new Set([
-  'monospace', 'courier', 'courier new', 'consolas', 'menlo',
-  'monaco', 'sfmono-regular', 'ui-monospace', 'liberation mono',
-  'jetbrains mono',
-]);
-
-/**
- * Walk every element in `root` and replace `font-family` inline-style
- * values with the embedded font name so that svg2pdf.js can resolve
- * them against jsPDF's font registry.
- */
-function normaliseFontsForPdf(root: Element): void {
-  const it = root.ownerDocument.createNodeIterator(root, NodeFilter.SHOW_ELEMENT);
-  let node: Node | null;
-  while ((node = it.nextNode())) {
-    const el = node as HTMLElement | SVGElement;
-    const ff = el.style?.fontFamily;
-    if (!ff) continue;
-
-    const names = ff.split(',').map((s) => s.trim().replace(/['"]/g, '').toLowerCase());
-    el.style.fontFamily = names.some((n) => MONO_NAMES.has(n))
-      ? 'JetBrains Mono'
-      : 'Inter';
-  }
-}
-
 /** Convert an ArrayBuffer to a base64-encoded string. */
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -184,9 +156,6 @@ export async function exportToPdf() {
   viewportEl.style.transform = origTransform;
   hiddenEls.forEach((el) => { el.style.display = ''; });
 
-  // ── Normalise fonts so svg2pdf.js maps them to embedded PDF fonts ─
-  normaliseFontsForPdf(svgDocument.documentElement);
-
   const svgElement = svgDocument.documentElement;
   svgElement.setAttribute('width', String(imageWidth));
   svgElement.setAttribute('height', String(imageHeight));
@@ -205,6 +174,11 @@ export async function exportToPdf() {
     embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-Bold.ttf', 'Inter', 'bold'),
     embedFont(pdf, '/fonts/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Regular.ttf', 'JetBrains Mono', 'normal'),
     embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf', 'JetBrains Mono', 'bold'),
+    
+    embedFont(pdf, '/fonts/Inter-Regular.ttf', 'Inter-Regular.ttf', 'helvetica', 'normal'),
+    embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-Bold.ttf', 'helvetica', '600normal'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Regular.ttf', 'courier', 'normal'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf', 'courier', '600normal'),
   ]);
 
   // Draw background
