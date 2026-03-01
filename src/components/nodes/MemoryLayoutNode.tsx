@@ -923,7 +923,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       >
         {chars.map((ch, i) => (
           <span
-            key={i}
+            key={rowAddr + i}
             className="text-center font-mono text-[9px] text-gray-500 dark:text-gray-400"
             style={{ width: `${(1 / unitSize) * 100}%` }}
           >
