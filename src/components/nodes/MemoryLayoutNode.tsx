@@ -893,28 +893,45 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       );
     }
 
-    // ASCII for hex/text
+    // ASCII for hex/text – use proportional-width cells so that N bytes of
+    // text/hex occupy the same visual width as N bytes of a field annotation.
 
-    let ascii = "";
+    const chars: string[] = [];
 
     for (let i = 0; i < unitSize; i++) {
       const ann = byteMap.get(rowAddr + i);
 
       if (!ann) {
-        ascii += ".";
+        chars.push(".");
       } else if (ann.type === "hex" || ann.type === "text" || ann.type === "integer") {
-        ascii +=
+        chars.push(
           ann.value >= 0x20 && ann.value < 0x7f
             ? String.fromCharCode(ann.value)
-            : ".";
+            : ".",
+        );
       } else {
-        ascii += "·";
+        chars.push("·");
       }
     }
 
-    if (ascii.replace(/\./g, "") === "") return null;
+    if (chars.every((ch) => ch === ".")) return null;
 
-    return <span className="font-mono text-[9px] text-gray-500 dark:text-gray-400">{ascii}</span>;
+    return (
+      <div
+        className="flex w-full items-center"
+        style={{ height: ROW_H - 2 }}
+      >
+        {chars.map((ch, i) => (
+          <span
+            key={i}
+            className="text-center font-mono text-[9px] text-gray-500 dark:text-gray-400"
+            style={{ width: `${(1 / unitSize) * 100}%` }}
+          >
+            {ch}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -1089,8 +1106,8 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               {/* Annotation */}
 
               <div
-                className="flex items-center overflow-hidden"
-                style={{ height: ROW_H, width: ANNOTATION_COL_W }}
+                className="flex flex-1 min-w-0 items-center overflow-hidden"
+                style={{ height: ROW_H }}
               >
                 {renderRowAnnotation(item.addr)}
               </div>
