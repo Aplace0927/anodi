@@ -977,27 +977,12 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      {/* Left handles */}
+      {/* Left handles — target (hidden, underneath) then source (visible, on top) */}
 
       {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
-          key={`addr-${label}-L`}
+          key={`addr-${label}-L-tgt`}
           type="target"
-          position={Position.Left}
-          id={`addr-${label}-left`}
-          style={{
-            top,
-            transform: "translateY(-50%)",
-            background: "#6b7280",
-            width: 8,
-            height: 8,
-          }}
-        />
-      ))}
-      {!dragging && rowPositions.map(({ label, top }) => (
-        <Handle
-          key={`addr-${label}-L-src`}
-          type="source"
           position={Position.Left}
           id={`addr-${label}-left`}
           style={{
@@ -1010,15 +995,12 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           }}
         />
       ))}
-
-      {/* Right handles */}
-
       {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
-          key={`addr-${label}-R`}
+          key={`addr-${label}-L`}
           type="source"
-          position={Position.Right}
-          id={`addr-${label}-right`}
+          position={Position.Left}
+          id={`addr-${label}-left`}
           style={{
             top,
             transform: "translateY(-50%)",
@@ -1028,6 +1010,9 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           }}
         />
       ))}
+
+      {/* Right handles — target (hidden, underneath) then source (visible, on top) */}
+
       {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
           key={`addr-${label}-R-tgt`}
@@ -1041,6 +1026,21 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             width: 8,
             height: 8,
             opacity: 0,
+          }}
+        />
+      ))}
+      {!dragging && rowPositions.map(({ label, top }) => (
+        <Handle
+          key={`addr-${label}-R`}
+          type="source"
+          position={Position.Right}
+          id={`addr-${label}-right`}
+          style={{
+            top,
+            transform: "translateY(-50%)",
+            background: "#6b7280",
+            width: 8,
+            height: 8,
           }}
         />
       ))}

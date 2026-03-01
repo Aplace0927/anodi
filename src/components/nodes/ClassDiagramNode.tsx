@@ -33,8 +33,8 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <Handle type="source" position={Position.Top} className="!bg-gray-400 !opacity-0" />
+      <Handle type="target" position={Position.Top} className="!bg-gray-400 !opacity-0" />
+      <Handle type="source" position={Position.Top} className="!bg-gray-400" />
 
       {/* Header */}
       <div
@@ -64,26 +64,26 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
                 type="target"
                 position={Position.Left}
                 id={`field-${f.id}-left`}
-                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
+                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
               />
               <Handle
                 type="source"
                 position={Position.Left}
                 id={`field-${f.id}-left`}
-                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
-              />
-              <span className="text-blue-600 dark:text-blue-400">{f.type}</span> {f.name}
-              <Handle
-                type="source"
-                position={Position.Right}
-                id={`field-${f.id}-right`}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
+              <span className="text-blue-600 dark:text-blue-400">{f.type}</span> {f.name}
               <Handle
                 type="target"
                 position={Position.Right}
                 id={`field-${f.id}-right`}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
+              />
+              <Handle
+                type="source"
+                position={Position.Right}
+                id={`field-${f.id}-right`}
+                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
             </div>
           ))}
@@ -99,27 +99,27 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
                 type="target"
                 position={Position.Left}
                 id={`method-${m.id}-left`}
-                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
+                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
               />
               <Handle
                 type="source"
                 position={Position.Left}
                 id={`method-${m.id}-left`}
-                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
+                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
               <span className="text-green-700 dark:text-green-500">⚙ </span>
               {m.signature}
-              <Handle
-                type="source"
-                position={Position.Right}
-                id={`method-${m.id}-right`}
-                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
-              />
               <Handle
                 type="target"
                 position={Position.Right}
                 id={`method-${m.id}-right`}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
+              />
+              <Handle
+                type="source"
+                position={Position.Right}
+                id={`method-${m.id}-right`}
+                style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
             </div>
           ))}
@@ -133,14 +133,14 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
       )}
 
       <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!bg-gray-400"
-      />
-      <Handle
         type="target"
         position={Position.Bottom}
         className="!bg-gray-400 !opacity-0"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-gray-400"
       />
     </div>
   );

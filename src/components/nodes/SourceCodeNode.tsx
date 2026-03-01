@@ -140,36 +140,27 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      {/* Left handles (target + source) — one per visible line */}
+      {/* Left handles — target (hidden, underneath) then source (visible, on top) */}
       {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
-          key={`line-${num}-L`}
+          key={`line-${num}-L-tgt`}
           type="target"
-          position={Position.Left}
-          id={`line-${num}-left`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
-        />
-      ))}
-      {isEditing ? null : linePositions.map(({ num, top }) => (
-        <Handle
-          key={`line-${num}-L-src`}
-          type="source"
           position={Position.Left}
           id={`line-${num}-left`}
           style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8, opacity: 0 }}
         />
       ))}
-
-      {/* Right handles (source + target) — one per visible line */}
       {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
-          key={`line-${num}-R`}
+          key={`line-${num}-L`}
           type="source"
-          position={Position.Right}
-          id={`line-${num}-right`}
+          position={Position.Left}
+          id={`line-${num}-left`}
           style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
         />
       ))}
+
+      {/* Right handles — target (hidden, underneath) then source (visible, on top) */}
       {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
           key={`line-${num}-R-tgt`}
@@ -177,6 +168,15 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           position={Position.Right}
           id={`line-${num}-right`}
           style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8, opacity: 0 }}
+        />
+      ))}
+      {isEditing ? null : linePositions.map(({ num, top }) => (
+        <Handle
+          key={`line-${num}-R`}
+          type="source"
+          position={Position.Right}
+          id={`line-${num}-right`}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
         />
       ))}
 

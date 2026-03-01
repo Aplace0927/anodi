@@ -122,7 +122,11 @@ function AppInner() {
           color: e.data?.relationship === 'reference' ? '#22c55e' : e.data?.relationship === 'information' ? '#f97316' : '#3b82f6',
         },
         style: {
-          opacity: selectedNodeId && !isConnectedToSelected ? 0.2 : 1,
+          opacity: e.id === selectedEdgeId
+            ? 1
+            : selectedNodeId && !isConnectedToSelected
+              ? 0.2
+              : 0.6,
         },
       };
     });

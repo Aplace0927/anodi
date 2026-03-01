@@ -39,7 +39,6 @@ const CustomEdge = memo(
       stroke: style.color,
       strokeWidth: selected ? 2.5 : 1.5,
       strokeDasharray: style.strokeDasharray,
-      opacity: selected ? 1 : 0.75,
     };
 
     return (
