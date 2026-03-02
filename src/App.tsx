@@ -26,6 +26,7 @@ import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { AnodiNode, AnodiEdge } from './types';
+import { getEdgeStyle } from './types';
 
 const nodeTypes = {
   source: SourceCodeNode,
@@ -51,6 +52,7 @@ function AppInner() {
   const onConnect = useGraphStore((s) => s.onConnect);
   const selectNode = useGraphStore((s) => s.selectNode);
   const selectEdge = useGraphStore((s) => s.selectEdge);
+  const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
 
@@ -119,7 +121,7 @@ function AppInner() {
           type: MarkerType.ArrowClosed,
           width: 16,
           height: 16,
-          color: e.data?.relationship === 'reference' ? '#22c55e' : e.data?.relationship === 'information' ? '#f97316' : '#3b82f6',
+          color: getEdgeStyle(e.data?.relationship ?? 'call', userEdgeTypes).color,
         },
         style: {
           opacity: e.id === selectedEdgeId
@@ -130,7 +132,7 @@ function AppInner() {
         },
       };
     });
-  }, [edges, selectedNodeId, selectedEdgeId]);
+  }, [edges, selectedNodeId, selectedEdgeId, userEdgeTypes]);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {

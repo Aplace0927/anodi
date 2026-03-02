@@ -9,7 +9,7 @@ import type {
   MemoryUnitSize,
   NodeData,
 } from '../../types';
-import { EDGE_STYLES } from '../../types';
+import { getEdgeStyle } from '../../types';
 import { v4 } from '../../utils/uuid';
 import { findEllipsisIndices } from '../../utils/code';
 import ColorPicker from '../ColorPicker';
@@ -394,7 +394,7 @@ export default function DetailPanel() {
           <ul className="space-y-1">
             {connectedEdges.map((e) => {
               const rel = e.data?.relationship ?? 'call';
-              const style = EDGE_STYLES[rel];
+              const style = getEdgeStyle(rel, useGraphStore.getState().userEdgeTypes);
               const otherId = e.source === node.id ? e.target : e.source;
               const other = nodes.find((n) => n.id === otherId);
               const otherData = other?.data as (NodeData & { name?: string }) | undefined;

@@ -6,7 +6,8 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import type { AnodiEdgeData } from '../../types';
-import { EDGE_STYLES } from '../../types';
+import { getEdgeStyle } from '../../types';
+import { useGraphStore } from '../../store/graphStore';
 
 type Props = EdgeProps & { data?: AnodiEdgeData };
 
@@ -24,7 +25,8 @@ const CustomEdge = memo(
     markerEnd,
   }: Props) => {
     const rel = data?.relationship ?? 'call';
-    const style = EDGE_STYLES[rel];
+    const userEdgeTypes = useGraphStore.getState().userEdgeTypes;
+    const style = getEdgeStyle(rel, userEdgeTypes);
 
     const [edgePath, labelX, labelY] = getBezierPath({
       sourceX,
