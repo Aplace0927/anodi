@@ -25,7 +25,7 @@ const CustomEdge = memo(
     markerEnd,
   }: Props) => {
     const rel = data?.relationship ?? 'call';
-    const userEdgeTypes = useGraphStore.getState().userEdgeTypes;
+    const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
     const style = getEdgeStyle(rel, userEdgeTypes);
 
     const [edgePath, labelX, labelY] = getBezierPath({

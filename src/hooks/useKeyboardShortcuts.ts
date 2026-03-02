@@ -71,7 +71,7 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
       }
 
       // User-defined edge types: 4-9, 0
-      if (!mod && /^[4-90]$/.test(e.key)) {
+      if (!mod && /^[0456789]$/.test(e.key)) {
         const userType = userEdgeTypes.find((t) => t.shortcutKey === e.key);
         if (userType) {
           e.preventDefault();
