@@ -2,9 +2,9 @@ import { useCallback } from 'react';
 import { X, ArrowRightLeft } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import type { NodeData, EdgeRelationship } from '../../types';
-import { EDGE_STYLES } from '../../types';
+import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, getEdgeStyle } from '../../types';
 
-const RELATIONSHIPS: EdgeRelationship[] = ['call', 'reference', 'information'];
+const RELATIONSHIPS: EdgeRelationship[] = [...BUILTIN_RELATIONSHIPS];
 
 /** Describe a connection endpoint for display in the edge sidebar. */
 function describeEndpoint(
@@ -59,6 +59,7 @@ export default function EdgeDetailPanel() {
   const selectEdge = useGraphStore((s) => s.selectEdge);
   const swapEdgeDirection = useGraphStore((s) => s.swapEdgeDirection);
   const updateEdgeRelationship = useGraphStore((s) => s.updateEdgeRelationship);
+  const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
 
   const edge = edges.find((e) => e.id === selectedEdgeId);
   const closePanel = useCallback(() => selectEdge(null), [selectEdge]);
@@ -66,7 +67,7 @@ export default function EdgeDetailPanel() {
   if (!edge) return null;
 
   const rel = edge.data?.relationship ?? 'call';
-  const style = EDGE_STYLES[rel];
+  const style = getEdgeStyle(rel, userEdgeTypes);
 
   const sourceNode = nodes.find((n) => n.id === edge.source);
   const targetNode = nodes.find((n) => n.id === edge.target);
@@ -146,29 +147,25 @@ export default function EdgeDetailPanel() {
         <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
           Relationship
         </label>
-        <div className="flex gap-1.5">
+        <select
+          value={rel}
+          onChange={(e) => updateEdgeRelationship(edge.id, e.target.value as EdgeRelationship)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
           {RELATIONSHIPS.map((r) => {
-            const s = EDGE_STYLES[r];
-            const isActive = r === rel;
+            const s = EDGE_STYLES[r as keyof typeof EDGE_STYLES];
             return (
-              <button
-                key={r}
-                onClick={() => updateEdgeRelationship(edge.id, r)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs font-medium transition-all ${
-                  isActive
-                    ? 'border-gray-400 bg-gray-200 text-gray-900 dark:border-gray-500 dark:bg-gray-700 dark:text-white'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800'
-                }`}
-              >
-                <span
-                  className="inline-block h-2 w-4 rounded-sm"
-                  style={{ backgroundColor: s.color }}
-                />
+              <option key={r} value={r}>
                 {s.label}
-              </button>
+              </option>
             );
           })}
-        </div>
+          {userEdgeTypes.map((ut) => (
+            <option key={ut.id} value={ut.id}>
+              {ut.label}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

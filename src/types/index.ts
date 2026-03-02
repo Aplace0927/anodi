@@ -98,7 +98,8 @@ export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData | No
 
 // ── Edge types ───────────────────────────────────────────────────
 
-export type EdgeRelationship = 'call' | 'reference' | 'information';
+export type BuiltinEdgeRelationship = 'call' | 'reference' | 'information';
+export type EdgeRelationship = BuiltinEdgeRelationship | (string & {});
 
 export interface AnodiEdgeData extends Record<string, unknown> {
   relationship: EdgeRelationship;
@@ -113,10 +114,15 @@ export type AnodiEdge = Edge<AnodiEdgeData>;
 
 // ── Edge style helpers ───────────────────────────────────────────
 
-export const EDGE_STYLES: Record<
-  EdgeRelationship,
-  { label: string; color: string; strokeDasharray?: string }
-> = {
+export interface EdgeStyleInfo {
+  label: string;
+  color: string;
+  strokeDasharray?: string;
+}
+
+export const BUILTIN_RELATIONSHIPS: BuiltinEdgeRelationship[] = ['call', 'reference', 'information'];
+
+export const EDGE_STYLES: Record<BuiltinEdgeRelationship, EdgeStyleInfo> = {
   call: { label: 'Call', color: '#3b82f6' },
   reference: { label: 'Reference', color: '#22c55e', strokeDasharray: '6 3' },
   information: {
@@ -125,3 +131,39 @@ export const EDGE_STYLES: Record<
     strokeDasharray: '2 4',
   },
 };
+
+// ── User-defined edge types ──────────────────────────────────────
+
+/** Keys available for user-defined edge shortcuts, in assignment order. */
+export const USER_EDGE_SHORTCUT_KEYS = ['4', '5', '6', '7', '8', '9', '0'] as const;
+export const MAX_USER_EDGE_TYPES = USER_EDGE_SHORTCUT_KEYS.length; // 7
+
+export interface UserEdgeType {
+  id: string;            // unique identifier, used as EdgeRelationship value
+  label: string;         // display name
+  color: string;         // hex color
+  strokeDasharray?: string;
+  shortcutKey: string;   // one of USER_EDGE_SHORTCUT_KEYS
+}
+
+export const BUILTIN_EDGE_SHORTCUT: Record<string, string> = {
+  call: '1',
+  reference: '2',
+  information: '3',
+};
+
+/** Look up edge style for any relationship (builtin or user-defined). */
+export function getEdgeStyle(
+  relationship: EdgeRelationship,
+  userEdgeTypes: UserEdgeType[]
+): EdgeStyleInfo {
+  if (relationship in EDGE_STYLES) {
+    return EDGE_STYLES[relationship as BuiltinEdgeRelationship];
+  }
+  const userType = userEdgeTypes.find((t) => t.id === relationship);
+  if (userType) {
+    return { label: userType.label, color: userType.color, strokeDasharray: userType.strokeDasharray };
+  }
+  // Fallback
+  return { label: relationship, color: '#6b7280' };
+}

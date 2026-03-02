@@ -1,8 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
-
-const EDGE_TYPES: EdgeRelationship[] = ['call', 'reference', 'information'];
+import { BUILTIN_RELATIONSHIPS } from '../types';
 
 interface UseKeyboardShortcutsOptions {
   onOpenAddNode: () => void;
@@ -16,6 +15,7 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const nodes = useGraphStore((s) => s.nodes);
   const onNodesChange = useGraphStore((s) => s.onNodesChange);
+  const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -53,21 +53,31 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
         return;
       }
 
-      // Edge type: 1, 2, 3
+      // Built-in edge types: 1, 2, 3
       if (e.key === '1' && !mod) {
         e.preventDefault();
-        setActiveEdgeType(EDGE_TYPES[0]);
+        setActiveEdgeType(BUILTIN_RELATIONSHIPS[0]);
         return;
       }
       if (e.key === '2' && !mod) {
         e.preventDefault();
-        setActiveEdgeType(EDGE_TYPES[1]);
+        setActiveEdgeType(BUILTIN_RELATIONSHIPS[1]);
         return;
       }
       if (e.key === '3' && !mod) {
         e.preventDefault();
-        setActiveEdgeType(EDGE_TYPES[2]);
+        setActiveEdgeType(BUILTIN_RELATIONSHIPS[2]);
         return;
+      }
+
+      // User-defined edge types: 4-9, 0
+      if (!mod && /^[0456789]$/.test(e.key)) {
+        const userType = userEdgeTypes.find((t) => t.shortcutKey === e.key);
+        if (userType) {
+          e.preventDefault();
+          setActiveEdgeType(userType.id as EdgeRelationship);
+          return;
+        }
       }
 
       // Delete selected node: Delete or Backspace
@@ -97,7 +107,7 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
         return;
       }
     },
-    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, nodes, onNodesChange]
+    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, nodes, onNodesChange, userEdgeTypes]
   );
 
   useEffect(() => {

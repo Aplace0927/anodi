@@ -11,7 +11,9 @@ import type {
   NodeData,
   EdgeRelationship,
   AnodiEdgeData,
+  UserEdgeType,
 } from '../types';
+import { USER_EDGE_SHORTCUT_KEYS, MAX_USER_EDGE_TYPES } from '../types';
 
 interface Snapshot {
   nodes: AnodiNode[];
@@ -27,6 +29,7 @@ interface GraphState {
   selectedEdgeId: string | null;
   activeEdgeType: EdgeRelationship;
   searchQuery: string;
+  userEdgeTypes: UserEdgeType[];
 
   // History
   past: Snapshot[];
@@ -44,6 +47,11 @@ interface GraphState {
   setActiveEdgeType: (type: EdgeRelationship) => void;
   swapEdgeDirection: (edgeId: string) => void;
   updateEdgeRelationship: (edgeId: string, relationship: EdgeRelationship) => void;
+
+  // User edge types
+  addUserEdgeType: (label: string, color: string, strokeDasharray?: string) => void;
+  updateUserEdgeType: (id: string, label: string, color: string, strokeDasharray?: string) => void;
+  removeUserEdgeType: (id: string) => void;
 
   // Selection
   selectNode: (id: string | null) => void;
@@ -70,6 +78,35 @@ function pushSnapshot(past: Snapshot[], nodes: AnodiNode[], edges: AnodiEdge[]):
   return newPast;
 }
 
+const USER_EDGE_TYPES_KEY = 'anodi-user-edge-types';
+
+function loadUserEdgeTypes(): UserEdgeType[] {
+  try {
+    const stored = localStorage.getItem(USER_EDGE_TYPES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUserEdgeTypes(types: UserEdgeType[]) {
+  try {
+    localStorage.setItem(USER_EDGE_TYPES_KEY, JSON.stringify(types));
+  } catch {
+    // ignore
+  }
+}
+
+function findNextShortcutKey(existing: UserEdgeType[]): string | null {
+  const used = new Set(existing.map((t) => t.shortcutKey));
+  for (const key of USER_EDGE_SHORTCUT_KEYS) {
+    if (!used.has(key)) return key;
+  }
+  return null;
+}
+
+let userEdgeIdCounter = Date.now();
+
 export const useGraphStore = create<GraphState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -77,6 +114,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   selectedEdgeId: null,
   activeEdgeType: 'call',
   searchQuery: '',
+  userEdgeTypes: loadUserEdgeTypes(),
   past: [],
   future: [],
 
@@ -158,6 +196,45 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   setActiveEdgeType: (type) => set({ activeEdgeType: type }),
+
+  addUserEdgeType: (label, color, strokeDasharray) => {
+    const { userEdgeTypes } = get();
+    if (userEdgeTypes.length >= MAX_USER_EDGE_TYPES) return;
+    const shortcutKey = findNextShortcutKey(userEdgeTypes);
+    if (!shortcutKey) return;
+    const id = `user-edge-${++userEdgeIdCounter}`;
+    const newType: UserEdgeType = { id, label, color, strokeDasharray, shortcutKey };
+    const updated = [...userEdgeTypes, newType];
+    saveUserEdgeTypes(updated);
+    set({ userEdgeTypes: updated });
+  },
+
+  updateUserEdgeType: (id, label, color, strokeDasharray) => {
+    const { userEdgeTypes } = get();
+    const updated = userEdgeTypes.map((t) =>
+      t.id === id ? { ...t, label, color, strokeDasharray } : t
+    );
+    saveUserEdgeTypes(updated);
+    set({ userEdgeTypes: updated });
+  },
+
+  removeUserEdgeType: (id) => {
+    const { userEdgeTypes, activeEdgeType, edges } = get();
+    const updated = userEdgeTypes.filter((t) => t.id !== id);
+    saveUserEdgeTypes(updated);
+    // Fallback: any edges using the removed type revert to 'call'
+    const updatedEdges = edges.map((e) =>
+      e.data?.relationship === id
+        ? { ...e, data: { ...e.data, relationship: 'call' as EdgeRelationship } as AnodiEdgeData }
+        : e
+    );
+    set({
+      userEdgeTypes: updated,
+      edges: updatedEdges,
+      // If the removed type was active, reset to 'call'
+      ...(activeEdgeType === id ? { activeEdgeType: 'call' as EdgeRelationship } : {}),
+    });
+  },
 
   swapEdgeDirection: (edgeId) => {
     set((s) => ({
