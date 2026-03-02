@@ -52,7 +52,8 @@ const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
         handleClassName="!bg-amber-400 !w-2 !h-2 !border-amber-500"
       />
 
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} className="!bg-gray-400 !opacity-0" />
+      <Handle type="source" position={Position.Top} className="!bg-gray-400" />
 
       {/* Header */}
       <div
@@ -90,6 +91,7 @@ const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
         </div>
       )}
 
+      <Handle type="target" position={Position.Bottom} className="!bg-gray-400 !opacity-0" />
       <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
     </div>
   );

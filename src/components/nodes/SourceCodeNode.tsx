@@ -140,18 +140,36 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      {/* Left handles (target) — one per visible line */}
+      {/* Left handles — target (hidden, underneath) then source (visible, on top) */}
+      {isEditing ? null : linePositions.map(({ num, top }) => (
+        <Handle
+          key={`line-${num}-L-tgt`}
+          type="target"
+          position={Position.Left}
+          id={`line-${num}-left`}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8, opacity: 0 }}
+        />
+      ))}
       {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
           key={`line-${num}-L`}
-          type="target"
+          type="source"
           position={Position.Left}
           id={`line-${num}-left`}
           style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
         />
       ))}
 
-      {/* Right handles (source) — one per visible line */}
+      {/* Right handles — target (hidden, underneath) then source (visible, on top) */}
+      {isEditing ? null : linePositions.map(({ num, top }) => (
+        <Handle
+          key={`line-${num}-R-tgt`}
+          type="target"
+          position={Position.Right}
+          id={`line-${num}-right`}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8, opacity: 0 }}
+        />
+      ))}
       {isEditing ? null : linePositions.map(({ num, top }) => (
         <Handle
           key={`line-${num}-R`}

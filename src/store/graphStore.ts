@@ -24,6 +24,7 @@ interface GraphState {
   nodes: AnodiNode[];
   edges: AnodiEdge[];
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
   activeEdgeType: EdgeRelationship;
   searchQuery: string;
 
@@ -32,7 +33,7 @@ interface GraphState {
   future: Snapshot[];
 
   // Node actions
-  addNode: (name: string, data: NodeData) => void;
+  addNode: (name: string, data: NodeData, position?: { x: number; y: number }) => void;
   updateNodeData: (id: string, data: Partial<NodeData>) => void;
   updateNodeName: (id: string, name: string) => void;
   onNodesChange: (changes: NodeChange<AnodiNode>[]) => void;
@@ -41,9 +42,12 @@ interface GraphState {
   onEdgesChange: (changes: EdgeChange<AnodiEdge>[]) => void;
   onConnect: (connection: Connection) => void;
   setActiveEdgeType: (type: EdgeRelationship) => void;
+  swapEdgeDirection: (edgeId: string) => void;
+  updateEdgeRelationship: (edgeId: string, relationship: EdgeRelationship) => void;
 
   // Selection
   selectNode: (id: string | null) => void;
+  selectEdge: (id: string | null) => void;
 
   // Search
   setSearchQuery: (q: string) => void;
@@ -70,18 +74,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  selectedEdgeId: null,
   activeEdgeType: 'call',
   searchQuery: '',
   past: [],
   future: [],
 
-  addNode: (name, data) => {
+  addNode: (name, data, position) => {
     const id = `node-${nodeCounter++}`;
     const offset = (nodeCounter - 1) * 20;
     const newNode: AnodiNode = {
       id,
       type: data.kind,
-      position: { x: 100 + (offset % 400), y: 100 + Math.floor(offset / 400) * 200 },
+      position: position ?? { x: 100 + (offset % 400), y: 100 + Math.floor(offset / 400) * 200 },
       data: { ...data, name },
     };
     set((s) => ({
@@ -154,7 +159,40 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   setActiveEdgeType: (type) => set({ activeEdgeType: type }),
 
-  selectNode: (id) => set({ selectedNodeId: id }),
+  swapEdgeDirection: (edgeId) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) => {
+        if (e.id !== edgeId) return e;
+        // Only swap source/target; keep same handle IDs so the visual path stays the same.
+        // Each handle position exposes both source and target types, so the handles resolve correctly.
+        return {
+          ...e,
+          source: e.target,
+          target: e.source,
+          sourceHandle: e.targetHandle ?? null,
+          targetHandle: e.sourceHandle ?? null,
+        };
+      }),
+    }));
+  },
+
+  updateEdgeRelationship: (edgeId, relationship) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) =>
+        e.id === edgeId
+          ? { ...e, data: { ...e.data, relationship } as AnodiEdgeData }
+          : e
+      ),
+    }));
+  },
+
+  selectNode: (id) => set({ selectedNodeId: id, selectedEdgeId: null }),
+
+  selectEdge: (id) => set({ selectedEdgeId: id, selectedNodeId: null }),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
 
@@ -166,7 +204,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }, 0);
     // If no standard IDs were found, use current timestamp to avoid collisions
     nodeCounter = maxId > 0 ? maxId + 1 : Date.now();
-    set({ nodes, edges, selectedNodeId: null, searchQuery: '', past: [], future: [] });
+    set({ nodes, edges, selectedNodeId: null, selectedEdgeId: null, searchQuery: '', past: [], future: [] });
   },
 
   undo: () => {

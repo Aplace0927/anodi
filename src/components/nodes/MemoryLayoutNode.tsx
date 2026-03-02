@@ -977,12 +977,28 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      {/* Left handles */}
+      {/* Left handles — target (hidden, underneath) then source (visible, on top) */}
 
       {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
-          key={`addr-${label}-L`}
+          key={`addr-${label}-L-tgt`}
           type="target"
+          position={Position.Left}
+          id={`addr-${label}-left`}
+          style={{
+            top,
+            transform: "translateY(-50%)",
+            background: "#6b7280",
+            width: 8,
+            height: 8,
+            opacity: 0,
+          }}
+        />
+      ))}
+      {!dragging && rowPositions.map(({ label, top }) => (
+        <Handle
+          key={`addr-${label}-L`}
+          type="source"
           position={Position.Left}
           id={`addr-${label}-left`}
           style={{
@@ -995,8 +1011,24 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
         />
       ))}
 
-      {/* Right handles */}
+      {/* Right handles — target (hidden, underneath) then source (visible, on top) */}
 
+      {!dragging && rowPositions.map(({ label, top }) => (
+        <Handle
+          key={`addr-${label}-R-tgt`}
+          type="target"
+          position={Position.Right}
+          id={`addr-${label}-right`}
+          style={{
+            top,
+            transform: "translateY(-50%)",
+            background: "#6b7280",
+            width: 8,
+            height: 8,
+            opacity: 0,
+          }}
+        />
+      ))}
       {!dragging && rowPositions.map(({ label, top }) => (
         <Handle
           key={`addr-${label}-R`}
