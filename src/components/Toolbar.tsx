@@ -36,9 +36,10 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
   const activeStyle = getEdgeStyle(activeEdgeType, userEdgeTypes);
 
   const sortedUserEdgeTypes = [...userEdgeTypes].sort((a, b) => {
-    const idxA = USER_EDGE_SHORTCUT_KEYS.indexOf(a.shortcutKey as typeof USER_EDGE_SHORTCUT_KEYS[number]);
-    const idxB = USER_EDGE_SHORTCUT_KEYS.indexOf(b.shortcutKey as typeof USER_EDGE_SHORTCUT_KEYS[number]);
-    return idxA - idxB;
+    const keys = USER_EDGE_SHORTCUT_KEYS as readonly string[];
+    const idxA = keys.indexOf(a.shortcutKey);
+    const idxB = keys.indexOf(b.shortcutKey);
+    return (idxA === -1 ? keys.length : idxA) - (idxB === -1 ? keys.length : idxB);
   });
 
   const handleImportJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
