@@ -65,7 +65,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
         <div className="flex items-center gap-2">
           {/* Branding */}
           <span className="mr-1 text-lg font-extrabold tracking-tight text-gray-900 dark:text-white">
-            an<span className="text-indigo-500 dark:text-indigo-400">odi</span>
+            <img src={theme === 'dark' ? '/dark.svg' : '/light.svg'} alt="Anodi" className="inline-block h-5 w-5 mr-1 -mt-0.5" />
           </span>
 
           {/* Add node – emphasized */}
