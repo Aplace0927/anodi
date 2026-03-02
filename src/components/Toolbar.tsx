@@ -64,9 +64,9 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
         {/* ── Left group ── */}
         <div className="flex items-center gap-2">
           {/* Branding */}
-          <span className="mr-1 text-lg font-extrabold tracking-tight text-gray-900 dark:text-white">
+            <a href="https://beyond-the-line-a.place" className="mr-1 text-lg font-extrabold tracking-tight text-gray-900 dark:text-white hover:opacity-80 transition-opacity">
             <img src={theme === 'dark' ? '/dark.svg' : '/light.svg'} alt="Anodi" className="inline-block h-5 w-5 mr-1 -mt-0.5" />
-          </span>
+            </a>
 
           {/* Add node – emphasized */}
           <button
