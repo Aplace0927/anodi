@@ -50,6 +50,7 @@ interface GraphState {
 
   // User edge types
   addUserEdgeType: (label: string, color: string, strokeDasharray?: string) => void;
+  updateUserEdgeType: (id: string, label: string, color: string, strokeDasharray?: string) => void;
   removeUserEdgeType: (id: string) => void;
 
   // Selection
@@ -204,6 +205,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const id = `user-edge-${++userEdgeIdCounter}`;
     const newType: UserEdgeType = { id, label, color, strokeDasharray, shortcutKey };
     const updated = [...userEdgeTypes, newType];
+    saveUserEdgeTypes(updated);
+    set({ userEdgeTypes: updated });
+  },
+
+  updateUserEdgeType: (id, label, color, strokeDasharray) => {
+    const { userEdgeTypes } = get();
+    const updated = userEdgeTypes.map((t) =>
+      t.id === id ? { ...t, label, color, strokeDasharray } : t
+    );
     saveUserEdgeTypes(updated);
     set({ userEdgeTypes: updated });
   },

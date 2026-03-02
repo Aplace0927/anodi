@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon, Undo2, Redo2, Trash2 } from 'lucide-react';
+import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon, Undo2, Redo2, Trash2, Settings } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
-import type { EdgeRelationship } from '../types';
-import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, BUILTIN_EDGE_SHORTCUT, MAX_USER_EDGE_TYPES, getEdgeStyle } from '../types';
+import type { EdgeRelationship, UserEdgeType } from '../types';
+import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, BUILTIN_EDGE_SHORTCUT, MAX_USER_EDGE_TYPES, USER_EDGE_SHORTCUT_KEYS, getEdgeStyle } from '../types';
 import AddNodeDialog from './dialogs/AddNodeDialog';
 import AddEdgeTypeDialog from './dialogs/AddEdgeTypeDialog';
 import { exportToPng, exportToPdf, exportToJson, importFromJson } from '../utils/export';
@@ -19,6 +19,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [showAddEdgeType, setShowAddEdgeType] = useState(false);
+  const [editingEdgeType, setEditingEdgeType] = useState<UserEdgeType | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeEdgeType = useGraphStore((s) => s.activeEdgeType);
@@ -33,6 +34,12 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
   const future = useGraphStore((s) => s.future);
 
   const activeStyle = getEdgeStyle(activeEdgeType, userEdgeTypes);
+
+  const sortedUserEdgeTypes = [...userEdgeTypes].sort((a, b) => {
+    const idxA = USER_EDGE_SHORTCUT_KEYS.indexOf(a.shortcutKey as typeof USER_EDGE_SHORTCUT_KEYS[number]);
+    const idxB = USER_EDGE_SHORTCUT_KEYS.indexOf(b.shortcutKey as typeof USER_EDGE_SHORTCUT_KEYS[number]);
+    return idxA - idxB;
+  });
 
   const handleImportJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -112,10 +119,10 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                 })}
 
                 {/* User-defined types */}
-                {userEdgeTypes.length > 0 && (
+                {sortedUserEdgeTypes.length > 0 && (
                   <>
                     <hr className="border-gray-200 dark:border-gray-700" />
-                    {userEdgeTypes.map((ut) => (
+                    {sortedUserEdgeTypes.map((ut) => (
                       <div
                         key={ut.id}
                         className={`group flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
@@ -139,6 +146,18 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            setShowEdgeDropdown(false);
+                            setEditingEdgeType(ut);
+                            setShowAddEdgeType(true);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-500 transition-opacity"
+                          title="Edit edge type"
+                        >
+                          <Settings size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             removeUserEdgeType(ut.id);
                           }}
                           className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
@@ -156,6 +175,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                 <button
                   onClick={() => {
                     setShowEdgeDropdown(false);
+                    setEditingEdgeType(undefined);
                     setShowAddEdgeType(true);
                   }}
                   disabled={userEdgeTypes.length >= MAX_USER_EDGE_TYPES}
@@ -283,7 +303,15 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
       />
 
       {showAddNode && <AddNodeDialog onClose={() => setShowAddNode(false)} getViewportCenter={getViewportCenter} />}
-      {showAddEdgeType && <AddEdgeTypeDialog onClose={() => setShowAddEdgeType(false)} />}
+      {showAddEdgeType && (
+        <AddEdgeTypeDialog
+          editType={editingEdgeType}
+          onClose={() => {
+            setShowAddEdgeType(false);
+            setEditingEdgeType(undefined);
+          }}
+        />
+      )}
     </>
   );
 }
