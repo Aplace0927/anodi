@@ -219,11 +219,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   removeUserEdgeType: (id) => {
-    const { userEdgeTypes, activeEdgeType } = get();
+    const { userEdgeTypes, activeEdgeType, edges } = get();
     const updated = userEdgeTypes.filter((t) => t.id !== id);
     saveUserEdgeTypes(updated);
+    // Fallback: any edges using the removed type revert to 'call'
+    const updatedEdges = edges.map((e) =>
+      e.data?.relationship === id
+        ? { ...e, data: { ...e.data, relationship: 'call' as EdgeRelationship } as AnodiEdgeData }
+        : e
+    );
     set({
       userEdgeTypes: updated,
+      edges: updatedEdges,
       // If the removed type was active, reset to 'call'
       ...(activeEdgeType === id ? { activeEdgeType: 'call' as EdgeRelationship } : {}),
     });
