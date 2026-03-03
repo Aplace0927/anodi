@@ -23,6 +23,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
   const [showAddEdgeType, setShowAddEdgeType] = useState(false);
   const [editingEdgeType, setEditingEdgeType] = useState<UserEdgeType | undefined>(undefined);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -316,10 +317,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
         <div className="ml-auto flex sm:hidden items-center gap-1">
           {/* Search icon for mobile */}
           <button
-            onClick={() => {
-              const el = document.getElementById('mobile-search');
-              if (el) el.classList.toggle('hidden');
-            }}
+            onClick={() => setShowMobileSearch((v) => !v)}
             className={seamlessBtn}
             title="Search"
           >
@@ -337,7 +335,8 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
       </div>
 
       {/* ── Mobile search bar (shown below toolbar) ── */}
-      <div id="mobile-search" className="hidden sm:hidden absolute left-0 right-0 top-12 z-20 border-b border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+      {showMobileSearch && (
+        <div className="sm:hidden absolute left-0 right-0 top-12 z-20 border-b border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
         <div className="relative flex items-center">
           <Search size={14} className="absolute left-2.5 text-gray-400" />
           <input
@@ -348,6 +347,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
           />
         </div>
       </div>
+      )}
 
       {/* ── Mobile popup menu ── */}
       {showMobileMenu && (
@@ -389,7 +389,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
           >
             {observerMode ? <EyeOff size={14} /> : <Eye size={14} />}
-            {observerMode ? 'Switch to edit mode' : 'View-only mode'}
+            {observerMode ? 'Switch to edit mode' : 'Switch to view-only mode'}
           </button>
           {/* Theme toggle */}
           <button
