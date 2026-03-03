@@ -42,6 +42,7 @@ const edgeTypes = {
 function AppInner() {
   const { theme, toggleTheme } = useTheme();
   const [showAddNode, setShowAddNode] = useState(false);
+  const [observerMode, setObserverMode] = useState(false);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
@@ -155,11 +156,12 @@ function AppInner() {
 
   useKeyboardShortcuts({
     onOpenAddNode: useCallback(() => setShowAddNode(true), []),
+    observerMode,
   });
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
-      <Toolbar theme={theme} toggleTheme={toggleTheme} showAddNode={showAddNode} setShowAddNode={setShowAddNode} getViewportCenter={getViewportCenter} />
+      <Toolbar theme={theme} toggleTheme={toggleTheme} showAddNode={showAddNode} setShowAddNode={setShowAddNode} getViewportCenter={getViewportCenter} observerMode={observerMode} setObserverMode={setObserverMode} />
 
       <div className="relative flex flex-1 overflow-hidden" style={{ marginTop: 48 }}>
         {/* Canvas */}
@@ -169,12 +171,16 @@ function AppInner() {
             edges={styledEdges}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
+            onNodesChange={observerMode ? undefined : onNodesChange}
+            onEdgesChange={observerMode ? undefined : onEdgesChange}
+            onConnect={observerMode ? undefined : onConnect}
             onNodeClick={handleNodeClick}
             onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
+            nodesDraggable={!observerMode}
+            nodesConnectable={!observerMode}
+            elementsSelectable={!observerMode}
+            deleteKeyCode={observerMode ? null : 'Delete'}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             minZoom={0.1}

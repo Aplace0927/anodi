@@ -5,9 +5,10 @@ import { BUILTIN_RELATIONSHIPS } from '../types';
 
 interface UseKeyboardShortcutsOptions {
   onOpenAddNode: () => void;
+  observerMode?: boolean;
 }
 
-export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOptions) {
+export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboardShortcutsOptions) {
   const undo = useGraphStore((s) => s.undo);
   const redo = useGraphStore((s) => s.redo);
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
@@ -28,6 +29,9 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
 
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
+
+      // In observer mode, block all editing shortcuts
+      if (observerMode) return;
 
       // Undo: Cmd/Ctrl + Z (without Shift)
       if (mod && key === 'z' && !e.shiftKey) {
@@ -107,7 +111,7 @@ export function useKeyboardShortcuts({ onOpenAddNode }: UseKeyboardShortcutsOpti
         return;
       }
     },
-    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, nodes, onNodesChange, userEdgeTypes]
+    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, nodes, onNodesChange, userEdgeTypes, observerMode]
   );
 
   useEffect(() => {
