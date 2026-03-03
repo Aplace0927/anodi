@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon, Undo2, Redo2, Trash2, Settings, Eye, EyeOff, Menu, X } from 'lucide-react';
+import { Plus, Search, ChevronDown, Download, Image, FileText, FileJson, Upload, Sun, Moon, Undo2, Redo2, Trash2, Settings, Lock, Unlock, Menu, X } from 'lucide-react';
 import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship, UserEdgeType } from '../types';
 import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, BUILTIN_EDGE_SHORTCUT, MAX_USER_EDGE_TYPES, USER_EDGE_SHORTCUT_KEYS, getEdgeStyle } from '../types';
@@ -298,9 +298,9 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
           <button
             onClick={() => setObserverMode(!observerMode)}
             className={`${seamlessBtn} ${observerMode ? 'text-amber-500 dark:text-amber-400' : ''}`}
-            title={observerMode ? 'Switch to edit mode' : 'Switch to view-only mode'}
+            title={observerMode ? 'Unlock board' : 'Lock board'}
           >
-            {observerMode ? <EyeOff size={16} /> : <Eye size={16} />}
+            {observerMode ? <Lock size={16} /> : <Unlock size={16} />}
           </button>
 
           {/* Theme toggle – seamless */}
@@ -388,8 +388,8 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
             onClick={() => { setObserverMode(!observerMode); setShowMobileMenu(false); }}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
           >
-            {observerMode ? <EyeOff size={14} /> : <Eye size={14} />}
-            {observerMode ? 'Switch to edit mode' : 'Switch to view-only mode'}
+            {observerMode ? <Lock size={14} /> : <Unlock size={14} />}
+            {observerMode ? 'Unlock board' : 'Lock board'}
           </button>
           {/* Theme toggle */}
           <button
