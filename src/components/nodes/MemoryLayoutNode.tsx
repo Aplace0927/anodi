@@ -28,10 +28,16 @@ const ROW_H = 20;
 const ELLIPSIS_H = 16;
 
 // Node width components (px)
-const ADDR_COL_W = 64;
+const ADDR_COL_W_BASE = 64;
 const GAP_W = 4;
 const BYTE_CELL_W = 20;
 const ANNOTATION_COL_W = 100;
+
+/** Compute address column width from hex‐digit count so long addresses don't overlap. */
+function addrColWidth(padLen: number): number {
+  // "0x" prefix (2 chars) + padLen hex digits, each ~6px at mono 9px font, plus 12px padding
+  return Math.max(ADDR_COL_W_BASE, (padLen + 2) * 6 + 12);
+}
 
 // Field colour palette (cycling)
 const FIELD_COLORS = [
@@ -208,6 +214,9 @@ type RowItem =
   | { addr: number; label: string }
   | { ellipsis: true; fromAddr: number; toAddr: number };
 
+/** Maximum memory range per node: 4 KB (one page). */
+const MAX_MEMORY_RANGE = 0x1000;
+
 function buildRowItems(
   baseAddress: string,
   endAddress: string,
@@ -218,7 +227,10 @@ function buildRowItems(
   const end = parseHexAddr(endAddress);
   if (end <= base || unitSize <= 0) return [];
 
-  const totalBytes = end - base;
+  // Safety: clamp to maximum 4 KB range to avoid freezes
+  const clampedEnd = Math.min(end, base + MAX_MEMORY_RANGE);
+
+  const totalBytes = clampedEnd - base;
 
   const effectiveCollapsed = collapsedRanges.map((r) => ({
     start: parseHexAddr(r.start),
@@ -227,13 +239,13 @@ function buildRowItems(
 
   if (totalBytes > MEMORY_THRESHOLD && effectiveCollapsed.length === 0) {
     const headEnd = base + MEMORY_LINES * unitSize;
-    const tailStart = end - MEMORY_LINES * unitSize;
+    const tailStart = clampedEnd - MEMORY_LINES * unitSize;
     if (headEnd < tailStart) {
       effectiveCollapsed.push({ start: headEnd, end: tailStart });
     }
   }
 
-  const padLen = Math.max(4, end.toString(16).length);
+  const padLen = Math.max(4, clampedEnd.toString(16).length);
   const isCollapsed = (addr: number) =>
     effectiveCollapsed.some((r) => addr >= r.start && addr < r.end);
 
@@ -241,7 +253,7 @@ function buildRowItems(
   let inCollapse = false;
   let collapseStart = 0;
 
-  for (let addr = base; addr < end; addr += unitSize) {
+  for (let addr = base; addr < clampedEnd; addr += unitSize) {
     if (isCollapsed(addr)) {
       if (!inCollapse) {
         collapseStart = addr;
@@ -258,7 +270,7 @@ function buildRowItems(
   }
   // Handle collapse that extends to the end
   if (inCollapse) {
-    items.push({ ellipsis: true, fromAddr: collapseStart, toAddr: end });
+    items.push({ ellipsis: true, fromAddr: collapseStart, toAddr: clampedEnd });
   }
 
   return items;
@@ -599,8 +611,9 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const customColor = data.nodeColor;
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
   const padLen = Math.max(4, end.toString(16).length);
+  const addrW = addrColWidth(padLen);
   const viewMinWidth =
-    ADDR_COL_W + GAP_W + unitSize * BYTE_CELL_W + GAP_W + ANNOTATION_COL_W;
+    addrW + GAP_W + unitSize * BYTE_CELL_W + GAP_W + ANNOTATION_COL_W;
 
   const isAutoCollapsed =
     end - base > MEMORY_THRESHOLD && (data.collapsedRanges ?? []).length === 0;
@@ -1140,7 +1153,10 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             >
               {/* Address */}
 
-              <span className="w-[60px] shrink-0 pl-2 font-mono text-[9px] text-gray-700 dark:text-gray-300">
+              <span
+                className="shrink-0 pl-2 font-mono text-[9px] text-gray-700 dark:text-gray-300"
+                style={{ width: addrW - 4 }}
+              >
                 {item.label}
               </span>
 
