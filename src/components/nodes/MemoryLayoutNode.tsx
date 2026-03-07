@@ -33,7 +33,7 @@ const GAP_W = 4;
 const BYTE_CELL_W = 20;
 const ANNOTATION_COL_W = 100;
 
-/** Compute address column width from hex‐digit count so long addresses don't overlap. */
+/** Compute address column width from hex-digit count so long addresses don't overlap. */
 function addrColWidth(padLen: number): number {
   // "0x" prefix (2 chars) + padLen hex digits, each ~6px at mono 9px font, plus 12px padding
   return Math.max(ADDR_COL_W_BASE, (padLen + 2) * 6 + 12);
