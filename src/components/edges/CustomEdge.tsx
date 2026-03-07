@@ -56,7 +56,7 @@ const CustomEdge = memo(
             className="anodi-export-edge nodrag nopan font-sans"
           >
             <span
-              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow"
+              className="whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow"
               style={{ backgroundColor: style.color }}
             >
               {style.label}
