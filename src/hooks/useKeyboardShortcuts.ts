@@ -14,8 +14,11 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
   const selectNode = useGraphStore((s) => s.selectNode);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const selectEdge = useGraphStore((s) => s.selectEdge);
+  const selectedEdgeId = useGraphStore((s) => s.selectedEdgeId);
   const nodes = useGraphStore((s) => s.nodes);
   const onNodesChange = useGraphStore((s) => s.onNodesChange);
+  const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
   const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
 
   const handleKeyDown = useCallback(
@@ -92,6 +95,14 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
         return;
       }
 
+      // Delete selected edge: Delete or Backspace
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEdgeId) {
+        e.preventDefault();
+        onEdgesChange([{ type: 'remove', id: selectedEdgeId }]);
+        selectEdge(null);
+        return;
+      }
+
       // Deselect: Escape
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -111,7 +122,7 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
         return;
       }
     },
-    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, nodes, onNodesChange, userEdgeTypes, observerMode]
+    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, selectedEdgeId, selectEdge, nodes, onNodesChange, onEdgesChange, userEdgeTypes, observerMode]
   );
 
   useEffect(() => {
