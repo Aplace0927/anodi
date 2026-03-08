@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import type {
@@ -6,6 +6,7 @@ import type {
   ClassField,
   ClassMethod,
   MemoryCollapsedRange,
+  MemoryLayoutData,
   MemoryUnitSize,
   NodeData,
 } from '../../types';
@@ -15,6 +16,16 @@ import { findEllipsisIndices } from '../../utils/code';
 import ColorPicker from '../ColorPicker';
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
+
+/** Maximum memory range per node: 4 KB (one page). */
+const MAX_MEMORY_RANGE = 0x1000;
+
+function parseHexAddr(s: string): number {
+  const trimmed = s.trim().toLowerCase();
+  if (trimmed.startsWith('0x')) return parseInt(trimmed, 16) || 0;
+  if (/[a-f]/.test(trimmed)) return parseInt(trimmed, 16) || 0;
+  return parseInt(trimmed, 10) || 0;
+}
 
 export default function DetailPanel() {
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
@@ -31,6 +42,22 @@ export default function DetailPanel() {
   );
 
   const closePanel = useCallback(() => selectNode(null), [selectNode]);
+
+  // ── Memory address draft state (deferred apply) ───────────────
+  const nodeData = node?.data as (NodeData & { name?: string }) | undefined;
+  const memData = nodeData?.kind === 'memory' ? nodeData as MemoryLayoutData : null;
+  const [draftBase, setDraftBase] = useState(memData?.baseAddress ?? '');
+  const [draftEnd, setDraftEnd] = useState(memData?.endAddress ?? '');
+  const [addrError, setAddrError] = useState<string | null>(null);
+
+  // Sync draft when the selected node or its stored addresses change
+  useEffect(() => {
+    if (memData) {
+      setDraftBase(memData.baseAddress ?? '');
+      setDraftEnd(memData.endAddress ?? '');
+      setAddrError(null);
+    }
+  }, [selectedNodeId, memData?.baseAddress, memData?.endAddress]);
 
   if (!node) return null;
 
@@ -233,26 +260,48 @@ export default function DetailPanel() {
 
     return (
       <div className="space-y-4">
-        {/* Address range */}
+        {/* Address range (deferred apply) */}
         <div>
           <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
             Address Range
           </label>
           <div className="flex items-center gap-2">
             <input
-              value={data.baseAddress ?? ''}
-              onChange={(e) => updateNodeData(node.id, { baseAddress: e.target.value })}
+              value={draftBase}
+              onChange={(e) => { setDraftBase(e.target.value); setAddrError(null); }}
               placeholder="Base (e.g. 0x4000)"
               className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1.5 font-mono text-xs text-green-700 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-green-300"
             />
             <span className="text-gray-400 dark:text-gray-500">–</span>
             <input
-              value={data.endAddress ?? ''}
-              onChange={(e) => updateNodeData(node.id, { endAddress: e.target.value })}
+              value={draftEnd}
+              onChange={(e) => { setDraftEnd(e.target.value); setAddrError(null); }}
               placeholder="End (e.g. 0x4200)"
               className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1.5 font-mono text-xs text-green-700 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-green-300"
             />
           </div>
+          {addrError && (
+            <p className="mt-1 text-[11px] text-red-500 dark:text-red-400">{addrError}</p>
+          )}
+          <button
+            onClick={() => {
+              const baseVal = parseHexAddr(draftBase);
+              const endVal = parseHexAddr(draftEnd);
+              if (baseVal >= endVal) {
+                setAddrError('Start address must be smaller than end address.');
+                return;
+              }
+              if (endVal - baseVal > MAX_MEMORY_RANGE) {
+                setAddrError(`Range exceeds 4 KB (0x${MAX_MEMORY_RANGE.toString(16).toUpperCase()}). Max one page per node.`);
+                return;
+              }
+              setAddrError(null);
+              updateNodeData(node.id, { baseAddress: draftBase, endAddress: draftEnd });
+            }}
+            className="mt-2 w-full rounded bg-orange-700 px-2 py-1 text-xs font-semibold text-white hover:bg-orange-600"
+          >
+            Apply
+          </button>
         </div>
 
         {/* Unit size */}

@@ -61,7 +61,7 @@ const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
         style={customColor ? { backgroundColor: customColor } : {}}
       >
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${customColor ? '' : 'bg-amber-700 text-white'}`}
+          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${customColor ? '' : 'bg-amber-700 text-white'}`}
           style={customColor ? { backgroundColor: `${customColor}cc`, color: contrastTextColor(customColor) } : {}}
         >
           📝 Note

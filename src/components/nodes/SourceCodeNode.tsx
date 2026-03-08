@@ -186,7 +186,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${langColor}`}
+          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${langColor}`}
         >
           {data.language}
         </span>

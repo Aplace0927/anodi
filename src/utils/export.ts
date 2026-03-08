@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
 import { elementToSVG, inlineResources } from 'dom-to-svg';
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react';
-import type { AnodiNode, AnodiEdge } from '../types';
+import type { AnodiNode, AnodiEdge, UserEdgeType } from '../types';
 import { useGraphStore } from '../store/graphStore';
 
 // ── Shared helpers ──────────────────────────────────────────────────
@@ -196,11 +196,12 @@ export interface AnodiGraphJson {
   version: 1;
   nodes: AnodiNode[];
   edges: AnodiEdge[];
+  userEdgeTypes?: UserEdgeType[];
 }
 
 export function exportToJson() {
-  const { nodes, edges } = useGraphStore.getState();
-  const payload: AnodiGraphJson = { version: 1, nodes, edges };
+  const { nodes, edges, userEdgeTypes } = useGraphStore.getState();
+  const payload: AnodiGraphJson = { version: 1, nodes, edges, userEdgeTypes };
   const json = JSON.stringify(payload, null, 2);
 
   const blob = new Blob([json], { type: 'application/json' });
@@ -222,7 +223,7 @@ export function importFromJson(file: File): Promise<void> {
         if (!Array.isArray(payload.nodes) || !Array.isArray(payload.edges)) {
           throw new Error('Invalid anodi JSON: missing or malformed nodes/edges');
         }
-        useGraphStore.getState().loadGraph(payload.nodes, payload.edges);
+        useGraphStore.getState().loadGraph(payload.nodes, payload.edges, payload.userEdgeTypes);
         resolve();
       } catch (err) {
         reject(err);

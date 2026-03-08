@@ -61,7 +61,7 @@ interface GraphState {
   setSearchQuery: (q: string) => void;
 
   // Import / export
-  loadGraph: (nodes: AnodiNode[], edges: AnodiEdge[]) => void;
+  loadGraph: (nodes: AnodiNode[], edges: AnodiEdge[], userEdgeTypes?: UserEdgeType[]) => void;
 
   // Undo / Redo
   undo: () => void;
@@ -273,7 +273,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   setSearchQuery: (q) => set({ searchQuery: q }),
 
-  loadGraph: (nodes, edges) => {
+  loadGraph: (nodes, edges, importedUserEdgeTypes) => {
     // Reset counter based on imported node IDs to avoid collisions
     const maxId = nodes.reduce((max, n) => {
       const match = n.id.match(/^node-(\d+)$/);
@@ -281,7 +281,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }, 0);
     // If no standard IDs were found, use current timestamp to avoid collisions
     nodeCounter = maxId > 0 ? maxId + 1 : Date.now();
-    set({ nodes, edges, selectedNodeId: null, selectedEdgeId: null, searchQuery: '', past: [], future: [] });
+
+    // Restore user-defined edge types if present, re-assigning shortcut keys
+    const restoredEdgeTypes = importedUserEdgeTypes && Array.isArray(importedUserEdgeTypes)
+      ? importedUserEdgeTypes.slice(0, MAX_USER_EDGE_TYPES).map((t, i) => ({
+          ...t,
+          shortcutKey: USER_EDGE_SHORTCUT_KEYS[i] ?? t.shortcutKey,
+        }))
+      : get().userEdgeTypes;
+    if (importedUserEdgeTypes) saveUserEdgeTypes(restoredEdgeTypes);
+
+    set({ nodes, edges, userEdgeTypes: restoredEdgeTypes, selectedNodeId: null, selectedEdgeId: null, searchQuery: '', past: [], future: [] });
   },
 
   undo: () => {
