@@ -45,7 +45,7 @@ function AppInner() {
   const [observerMode, setObserverMode] = useState(false);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
-  const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
   const selectedEdgeId = useGraphStore((s) => s.selectedEdgeId);
   const searchQuery = useGraphStore((s) => s.searchQuery);
   const onNodesChange = useGraphStore((s) => s.onNodesChange);
@@ -74,26 +74,28 @@ function AppInner() {
     return new Set(searchNodes(nodes, searchQuery).map((m) => m.nodeId));
   }, [nodes, searchQuery]);
 
-  // Compute neighbor node IDs for selected node
+  // Compute neighbor node IDs for selected nodes
+  const selectedIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
   const neighborIds = useMemo(() => {
-    if (!selectedNodeId) return new Set<string>();
+    if (selectedNodeIds.length === 0) return new Set<string>();
     const neighbors = new Set<string>();
     edges.forEach((e) => {
-      if (e.source === selectedNodeId) neighbors.add(e.target);
-      if (e.target === selectedNodeId) neighbors.add(e.source);
+      if (selectedIdSet.has(e.source)) neighbors.add(e.target);
+      if (selectedIdSet.has(e.target)) neighbors.add(e.source);
     });
     return neighbors;
-  }, [selectedNodeId, edges]);
+  }, [selectedNodeIds, selectedIdSet, edges]);
 
   // Annotate nodes with selected/highlighted state
   const styledNodes = useMemo((): AnodiNode[] => {
+    const hasSelection = selectedNodeIds.length > 0;
     return nodes.map((n) => {
-      const isSelected = n.id === selectedNodeId;
+      const isSelected = selectedIdSet.has(n.id);
       const isNeighbor = neighborIds.has(n.id);
       const isMatch = matchedIds.has(n.id);
 
       let opacity = 1;
-      if (selectedNodeId && !isSelected && !isNeighbor) opacity = 0.35;
+      if (hasSelection && !isSelected && !isNeighbor) opacity = 0.35;
       if (searchQuery && !isMatch) opacity = 0.3;
 
       return {
@@ -107,13 +109,14 @@ function AppInner() {
         },
       };
     });
-  }, [nodes, selectedNodeId, neighborIds, matchedIds, searchQuery]);
+  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery]);
 
   // Annotate edges with highlight state and arrow markers
   const styledEdges = useMemo((): AnodiEdge[] => {
+    const hasSelection = selectedNodeIds.length > 0;
     return edges.map((e) => {
       const isConnectedToSelected =
-        e.source === selectedNodeId || e.target === selectedNodeId;
+        selectedIdSet.has(e.source) || selectedIdSet.has(e.target);
       return {
         ...e,
         animated: isConnectedToSelected,
@@ -127,19 +130,25 @@ function AppInner() {
         style: {
           opacity: e.id === selectedEdgeId
             ? 1
-            : selectedNodeId && !isConnectedToSelected
+            : hasSelection && !isConnectedToSelected
               ? 0.2
               : 0.6,
         },
       };
     });
-  }, [edges, selectedNodeId, selectedEdgeId, userEdgeTypes]);
+  }, [edges, selectedNodeIds, selectedIdSet, selectedEdgeId, userEdgeTypes]);
+
+  const toggleNodeSelection = useGraphStore((s) => s.toggleNodeSelection);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
-    (_event, node) => {
-      selectNode(node.id);
+    (event, node) => {
+      if (event.shiftKey) {
+        toggleNodeSelection(node.id);
+      } else {
+        selectNode(node.id);
+      }
     },
-    [selectNode]
+    [selectNode, toggleNodeSelection]
   );
 
   const handleEdgeClick: EdgeMouseHandler = useCallback(
@@ -206,7 +215,7 @@ function AppInner() {
         <SearchPanel />
 
         {/* Detail panel */}
-        {selectedNodeId && <DetailPanel />}
+        {selectedNodeIds.length === 1 && <DetailPanel />}
         {selectedEdgeId && <EdgeDetailPanel />}
       </div>
     </div>
