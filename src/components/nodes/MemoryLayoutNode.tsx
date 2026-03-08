@@ -683,6 +683,11 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     updateNodeData(id, { cells: cells.filter((c) => c.id !== cellId) });
   };
 
+  const sortedCells = useMemo(
+    () => [...cells].sort((a, b) => parseHexAddr(a.address) - parseHexAddr(b.address)),
+    [cells],
+  );
+
   // ── Render one byte cell in the hex area ───────────────────────
 
   const renderByteCell = (byteAddr: number) => {
@@ -1240,7 +1245,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                 Content ({cells.length})
               </span>
 
-              {cells.map((c) => (
+              {sortedCells.map((c) => (
                 <div key={c.id}>
                   {editingCellId === c.id ? (
                     <CellForm
