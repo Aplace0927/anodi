@@ -82,6 +82,7 @@ interface GraphState {
 }
 
 let nodeCounter = 1;
+let edgeCounter = 1;
 
 function pushSnapshot(past: Snapshot[], nodes: AnodiNode[], edges: AnodiEdge[]): Snapshot[] {
   const newPast = [...past, { nodes, edges }];
@@ -337,7 +338,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       .filter((e) => idMap.has(e.source) && idMap.has(e.target))
       .map((e) => ({
         ...e,
-        id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: `edge-${edgeCounter++}`,
         source: idMap.get(e.source)!,
         target: idMap.get(e.target)!,
         data: e.data ? { ...e.data } : undefined,
