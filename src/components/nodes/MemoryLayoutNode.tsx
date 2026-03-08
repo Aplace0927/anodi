@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { Edit2, Check, Plus, Trash2 } from "lucide-react";
@@ -604,6 +604,16 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
+  const edges = useGraphStore((s) => s.edges);
+
+  const connectedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) set.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) set.add(e.targetHandle);
+    }
+    return set;
+  }, [edges, id]);
   const unitSize = data.unitSize ?? 8;
   const cells: MemoryCell[] = data.cells ?? [];
   const base = parseHexAddr(data.baseAddress ?? "0x0000");
@@ -1002,8 +1012,8 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             top,
             transform: "translateY(-50%)",
             background: "#6b7280",
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             opacity: 0,
           }}
         />
@@ -1014,12 +1024,13 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           type="source"
           position={Position.Left}
           id={`addr-${label}-left`}
+          className={connectedHandles.has(`addr-${label}-left`) ? 'anodi-connected' : undefined}
           style={{
             top,
             transform: "translateY(-50%)",
             background: "#6b7280",
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
           }}
         />
       ))}
@@ -1036,8 +1047,8 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             top,
             transform: "translateY(-50%)",
             background: "#6b7280",
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             opacity: 0,
           }}
         />
@@ -1048,12 +1059,13 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           type="source"
           position={Position.Right}
           id={`addr-${label}-right`}
+          className={connectedHandles.has(`addr-${label}-right`) ? 'anodi-connected' : undefined}
           style={{
             top,
             transform: "translateY(-50%)",
             background: "#6b7280",
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
           }}
         />
       ))}

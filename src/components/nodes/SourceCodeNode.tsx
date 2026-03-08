@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import MonacoEditor from '@monaco-editor/react';
@@ -85,7 +85,17 @@ function parseLines(code: string, collapsedLineMap: number[]): LineItem[] {
 const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
+  const edges = useGraphStore((s) => s.edges);
   const { theme } = useTheme();
+
+  const connectedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) set.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) set.add(e.targetHandle);
+    }
+    return set;
+  }, [edges, id]);
 
   const langColor = LANG_COLORS[data.language] ?? 'bg-gray-500';
   const items = dragging ? [] : parseLines(data.code, data.collapsedLineMap ?? []);
@@ -147,7 +157,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           type="target"
           position={Position.Left}
           id={`line-${num}-left`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8, opacity: 0 }}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
         />
       ))}
       {isEditing ? null : linePositions.map(({ num, top }) => (
@@ -156,7 +166,8 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           type="source"
           position={Position.Left}
           id={`line-${num}-left`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
+          className={connectedHandles.has(`line-${num}-left`) ? 'anodi-connected' : undefined}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
         />
       ))}
 
@@ -167,7 +178,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           type="target"
           position={Position.Right}
           id={`line-${num}-right`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8, opacity: 0 }}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
         />
       ))}
       {isEditing ? null : linePositions.map(({ num, top }) => (
@@ -176,7 +187,8 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           type="source"
           position={Position.Right}
           id={`line-${num}-right`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 8, height: 8 }}
+          className={connectedHandles.has(`line-${num}-right`) ? 'anodi-connected' : undefined}
+          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
         />
       ))}
 

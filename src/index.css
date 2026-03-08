@@ -62,3 +62,24 @@ body,
 .dark .react-flow__controls-button svg {
   fill: #fff !important;
 }
+
+/* ── Handle visibility ──────────────────────────────────────────── */
+/* Source handles (visible connector dots) are hidden by default and
+   revealed on node hover or when an edge is connected.  Target handles
+   stay at opacity 0 regardless (they act as invisible drop targets). */
+
+.react-flow__handle {
+  transition: opacity 0.15s ease;
+}
+
+.react-flow__handle.source {
+  opacity: 0 !important;
+}
+
+.react-flow__node:hover .react-flow__handle.source {
+  opacity: 1 !important;
+}
+
+.react-flow__handle.source.anodi-connected {
+  opacity: 1 !important;
+}
