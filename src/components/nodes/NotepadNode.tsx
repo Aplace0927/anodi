@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, NodeResizer } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { NotepadData } from '../../types';
@@ -13,11 +13,14 @@ const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
   const customColor = data.nodeColor;
 
   // Compute set of handle IDs that have a connected edge
-  const connectedHandles = new Set<string>();
-  for (const e of edges) {
-    if (e.source === id && e.sourceHandle) connectedHandles.add(e.sourceHandle);
-    if (e.target === id && e.targetHandle) connectedHandles.add(e.targetHandle);
-  }
+  const connectedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) set.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) set.add(e.targetHandle);
+    }
+    return set;
+  }, [edges, id]);
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
   const handleContentChange = useCallback(

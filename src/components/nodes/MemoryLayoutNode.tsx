@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { Edit2, Check, Plus, Trash2 } from "lucide-react";
@@ -606,11 +606,14 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const edges = useGraphStore((s) => s.edges);
 
-  const connectedHandles = new Set<string>();
-  for (const e of edges) {
-    if (e.source === id && e.sourceHandle) connectedHandles.add(e.sourceHandle);
-    if (e.target === id && e.targetHandle) connectedHandles.add(e.targetHandle);
-  }
+  const connectedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) set.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) set.add(e.targetHandle);
+    }
+    return set;
+  }, [edges, id]);
   const unitSize = data.unitSize ?? 8;
   const cells: MemoryCell[] = data.cells ?? [];
   const base = parseHexAddr(data.baseAddress ?? "0x0000");

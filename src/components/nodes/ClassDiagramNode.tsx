@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ClassDiagramData } from "../../types";
@@ -14,11 +14,14 @@ const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
   const customColor = data.nodeColor;
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
-  const connectedHandles = new Set<string>();
-  for (const e of edges) {
-    if (e.source === id && e.sourceHandle) connectedHandles.add(e.sourceHandle);
-    if (e.target === id && e.targetHandle) connectedHandles.add(e.targetHandle);
-  }
+  const connectedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) set.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) set.add(e.targetHandle);
+    }
+    return set;
+  }, [edges, id]);
 
   return (
     <div

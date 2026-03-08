@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import MonacoEditor from '@monaco-editor/react';
@@ -88,11 +88,14 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const edges = useGraphStore((s) => s.edges);
   const { theme } = useTheme();
 
-  const connectedHandles = new Set<string>();
-  for (const e of edges) {
-    if (e.source === id && e.sourceHandle) connectedHandles.add(e.sourceHandle);
-    if (e.target === id && e.targetHandle) connectedHandles.add(e.targetHandle);
-  }
+  const connectedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) set.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) set.add(e.targetHandle);
+    }
+    return set;
+  }, [edges, id]);
 
   const langColor = LANG_COLORS[data.language] ?? 'bg-gray-500';
   const items = dragging ? [] : parseLines(data.code, data.collapsedLineMap ?? []);
