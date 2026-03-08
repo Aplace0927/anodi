@@ -138,17 +138,15 @@ function AppInner() {
     });
   }, [edges, selectedNodeIds, selectedIdSet, selectedEdgeId, userEdgeTypes]);
 
-  const toggleNodeSelection = useGraphStore((s) => s.toggleNodeSelection);
-
   const handleNodeClick: NodeMouseHandler = useCallback(
-    (event, node) => {
-      if (event.shiftKey) {
-        toggleNodeSelection(node.id);
-      } else {
+    (_event, node) => {
+      // When shift is held, React Flow handles multi-selection natively
+      // via multiSelectionKeyCode="Shift" – don't override it here.
+      if (!_event.shiftKey) {
         selectNode(node.id);
       }
     },
-    [selectNode, toggleNodeSelection]
+    [selectNode]
   );
 
   const handleEdgeClick: EdgeMouseHandler = useCallback(
@@ -189,6 +187,7 @@ function AppInner() {
             nodesDraggable={!observerMode}
             nodesConnectable={!observerMode}
             elementsSelectable={!observerMode}
+            multiSelectionKeyCode="Shift"
             deleteKeyCode={observerMode ? null : 'Delete'}
             fitView
             fitViewOptions={{ padding: 0.2 }}
