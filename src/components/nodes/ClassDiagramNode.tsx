@@ -33,8 +33,8 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      <Handle type="target" position={Position.Top} className="!bg-gray-400 !opacity-0" />
-      <Handle type="source" position={Position.Top} className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} id="top" className="!bg-gray-400 !opacity-0" />
+      <Handle type="source" position={Position.Top} id="top" className="!bg-gray-400" />
 
       {/* Header */}
       <div
@@ -135,11 +135,13 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
       <Handle
         type="target"
         position={Position.Bottom}
+        id="bottom"
         className="!bg-gray-400 !opacity-0"
       />
       <Handle
         type="source"
         position={Position.Bottom}
+        id="bottom"
         className="!bg-gray-400"
       />
     </div>
