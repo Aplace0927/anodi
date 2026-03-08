@@ -35,6 +35,8 @@ export default function DetailPanel() {
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const updateNodeName = useGraphStore((s) => s.updateNodeName);
 
+  const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
+
   const node = nodes.find((n) => n.id === selectedNodeId);
 
   const connectedEdges = edges.filter(
@@ -265,20 +267,25 @@ export default function DetailPanel() {
           <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
             Address Range
           </label>
-          <div className="flex items-center gap-2">
-            <input
-              value={draftBase}
-              onChange={(e) => { setDraftBase(e.target.value); setAddrError(null); }}
-              placeholder="Base (e.g. 0x4000)"
-              className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1.5 font-mono text-xs text-green-700 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-green-300"
-            />
-            <span className="text-gray-400 dark:text-gray-500">–</span>
-            <input
-              value={draftEnd}
-              onChange={(e) => { setDraftEnd(e.target.value); setAddrError(null); }}
-              placeholder="End (e.g. 0x4200)"
-              className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1.5 font-mono text-xs text-green-700 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-green-300"
-            />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="w-10 text-xs text-gray-500 dark:text-gray-400">From</span>
+              <input
+                value={draftBase}
+                onChange={(e) => { setDraftBase(e.target.value); setAddrError(null); }}
+                placeholder="e.g. 0x4000"
+                className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1.5 font-mono text-xs text-green-700 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-green-300"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-10 text-xs text-gray-500 dark:text-gray-400">To</span>
+              <input
+                value={draftEnd}
+                onChange={(e) => { setDraftEnd(e.target.value); setAddrError(null); }}
+                placeholder="e.g. 0x4200"
+                className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1.5 font-mono text-xs text-green-700 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-green-300"
+              />
+            </div>
           </div>
           {addrError && (
             <p className="mt-1 text-[11px] text-red-500 dark:text-red-400">{addrError}</p>
@@ -297,6 +304,22 @@ export default function DetailPanel() {
               }
               setAddrError(null);
               updateNodeData(node.id, { baseAddress: draftBase, endAddress: draftEnd });
+
+              // Garbage-collect edges connected to addresses outside the new range
+              const staleEdgeIds = connectedEdges
+                .filter((e) => {
+                  const handle =
+                    e.source === node.id ? e.sourceHandle : e.targetHandle;
+                  if (!handle) return false;
+                  const m = handle.match(/^addr-(0x[0-9A-Fa-f]+)/);
+                  if (!m) return false;
+                  const addr = parseHexAddr(m[1]);
+                  return addr < baseVal || addr >= endVal;
+                })
+                .map((e) => ({ type: 'remove' as const, id: e.id }));
+              if (staleEdgeIds.length > 0) {
+                onEdgesChange(staleEdgeIds);
+              }
             }}
             className="mt-2 w-full rounded bg-orange-700 px-2 py-1 text-xs font-semibold text-white hover:bg-orange-600"
           >
