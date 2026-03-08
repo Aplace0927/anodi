@@ -141,7 +141,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                   className="inline-block h-2.5 w-5 rounded-sm border border-white/30"
                   style={{ backgroundColor: activeStyle.color }}
                 />
-                {!isCompact && <span>{activeStyle.label}</span>}
+                {!isCompact && <span className="whitespace-nowrap">{activeStyle.label}</span>}
                 <ChevronDown size={14} className="text-white/70" />
               </button>
 
@@ -183,18 +183,18 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                           }`}
                         >
                           <button
-                            className="flex flex-1 items-center gap-2"
+                            className="flex flex-1 items-center gap-2 min-w-0"
                             onClick={() => {
                               setActiveEdgeType(ut.id as EdgeRelationship);
                               setShowEdgeDropdown(false);
                             }}
                           >
                             <span
-                              className="inline-block h-2 w-5 rounded-sm"
+                              className="inline-block h-2 w-5 shrink-0 rounded-sm"
                               style={{ backgroundColor: ut.color }}
                             />
-                            {ut.label}
-                            <span className="ml-auto text-[10px] text-gray-400">{ut.shortcutKey}</span>
+                            <span className="truncate">{ut.label}</span>
+                            <span className="ml-auto shrink-0 text-[10px] text-gray-400">{ut.shortcutKey}</span>
                           </button>
                           <button
                             onClick={(e) => {
