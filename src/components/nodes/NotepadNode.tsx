@@ -9,7 +9,15 @@ type Props = NodeProps & { data: NotepadData & { name?: string } };
 
 const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
+  const edges = useGraphStore((s) => s.edges);
   const customColor = data.nodeColor;
+
+  // Compute set of handle IDs that have a connected edge
+  const connectedHandles = new Set<string>();
+  for (const e of edges) {
+    if (e.source === id && e.sourceHandle) connectedHandles.add(e.sourceHandle);
+    if (e.target === id && e.targetHandle) connectedHandles.add(e.targetHandle);
+  }
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
   const handleContentChange = useCallback(
@@ -52,8 +60,8 @@ const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
         handleClassName="!bg-amber-400 !w-2 !h-2 !border-amber-500"
       />
 
-      <Handle type="target" position={Position.Top} id="top" className="!bg-gray-400 !opacity-0" />
-      <Handle type="source" position={Position.Top} id="top" className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} id="top" style={{ background: '#9ca3af', width: 7, height: 7, opacity: 0 }} />
+      <Handle type="source" position={Position.Top} id="top" className={connectedHandles.has('top') ? 'anodi-connected' : undefined} style={{ background: '#9ca3af', width: 7, height: 7 }} />
 
       {/* Header */}
       <div
@@ -91,8 +99,8 @@ const NotepadNode = memo(({ id, data, selected, dragging }: Props) => {
         </div>
       )}
 
-      <Handle type="target" position={Position.Bottom} id="bottom" className="!bg-gray-400 !opacity-0" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-gray-400" />
+      <Handle type="target" position={Position.Bottom} id="bottom" style={{ background: '#9ca3af', width: 7, height: 7, opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className={connectedHandles.has('bottom') ? 'anodi-connected' : undefined} style={{ background: '#9ca3af', width: 7, height: 7 }} />
     </div>
   );
 });

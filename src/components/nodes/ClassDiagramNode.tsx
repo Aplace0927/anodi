@@ -2,15 +2,23 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ClassDiagramData } from "../../types";
+import { useGraphStore } from "../../store/graphStore";
 import { contrastTextColor } from "../ColorPicker";
 
 type Props = NodeProps & { data: ClassDiagramData & { name?: string } };
 
 const MEMBER_H = 18; // height of each field/method row in px
 
-const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
+const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
+  const edges = useGraphStore((s) => s.edges);
   const customColor = data.nodeColor;
   const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
+
+  const connectedHandles = new Set<string>();
+  for (const e of edges) {
+    if (e.source === id && e.sourceHandle) connectedHandles.add(e.sourceHandle);
+    if (e.target === id && e.targetHandle) connectedHandles.add(e.targetHandle);
+  }
 
   return (
     <div
@@ -33,8 +41,8 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
           : {}),
       }}
     >
-      <Handle type="target" position={Position.Top} id="top" className="!bg-gray-400 !opacity-0" />
-      <Handle type="source" position={Position.Top} id="top" className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} id="top" style={{ background: '#9ca3af', width: 7, height: 7, opacity: 0 }} />
+      <Handle type="source" position={Position.Top} id="top" className={connectedHandles.has('top') ? 'anodi-connected' : undefined} style={{ background: '#9ca3af', width: 7, height: 7 }} />
 
       {/* Header */}
       <div
@@ -70,6 +78,7 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
                 type="source"
                 position={Position.Left}
                 id={`field-${f.id}-left`}
+                className={connectedHandles.has(`field-${f.id}-left`) ? 'anodi-connected' : undefined}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
               <span className="text-blue-600 dark:text-blue-400">{f.type}</span> {f.name}
@@ -83,6 +92,7 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
                 type="source"
                 position={Position.Right}
                 id={`field-${f.id}-right`}
+                className={connectedHandles.has(`field-${f.id}-right`) ? 'anodi-connected' : undefined}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
             </div>
@@ -105,6 +115,7 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
                 type="source"
                 position={Position.Left}
                 id={`method-${m.id}-left`}
+                className={connectedHandles.has(`method-${m.id}-left`) ? 'anodi-connected' : undefined}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
               <span className="text-green-700 dark:text-green-500">⚙ </span>
@@ -119,6 +130,7 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
                 type="source"
                 position={Position.Right}
                 id={`method-${m.id}-right`}
+                className={connectedHandles.has(`method-${m.id}-right`) ? 'anodi-connected' : undefined}
                 style={{ top: '50%', transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
               />
             </div>
@@ -136,13 +148,14 @@ const ClassDiagramNode = memo(({ data, selected, dragging }: Props) => {
         type="target"
         position={Position.Bottom}
         id="bottom"
-        className="!bg-gray-400 !opacity-0"
+        style={{ background: '#9ca3af', width: 7, height: 7, opacity: 0 }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!bg-gray-400"
+        className={connectedHandles.has('bottom') ? 'anodi-connected' : undefined}
+        style={{ background: '#9ca3af', width: 7, height: 7 }}
       />
     </div>
   );
