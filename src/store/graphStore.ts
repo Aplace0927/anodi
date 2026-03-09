@@ -22,14 +22,20 @@ interface Snapshot {
 
 const MAX_HISTORY = 50;
 
+interface Clipboard {
+  nodes: AnodiNode[];
+  edges: AnodiEdge[];
+}
+
 interface GraphState {
   nodes: AnodiNode[];
   edges: AnodiEdge[];
-  selectedNodeId: string | null;
+  selectedNodeIds: string[];
   selectedEdgeId: string | null;
   activeEdgeType: EdgeRelationship;
   searchQuery: string;
   userEdgeTypes: UserEdgeType[];
+  clipboard: Clipboard | null;
 
   // History
   past: Snapshot[];
@@ -55,7 +61,12 @@ interface GraphState {
 
   // Selection
   selectNode: (id: string | null) => void;
+  toggleNodeSelection: (id: string) => void;
   selectEdge: (id: string | null) => void;
+
+  // Clipboard
+  copySelection: () => void;
+  pasteSelection: (offset?: { x: number; y: number }) => void;
 
   // Search
   setSearchQuery: (q: string) => void;
@@ -71,6 +82,7 @@ interface GraphState {
 }
 
 let nodeCounter = 1;
+let edgeCounter = 1;
 
 function pushSnapshot(past: Snapshot[], nodes: AnodiNode[], edges: AnodiEdge[]): Snapshot[] {
   const newPast = [...past, { nodes, edges }];
@@ -110,11 +122,12 @@ let userEdgeIdCounter = Date.now();
 export const useGraphStore = create<GraphState>((set, get) => ({
   nodes: [],
   edges: [],
-  selectedNodeId: null,
+  selectedNodeIds: [],
   selectedEdgeId: null,
   activeEdgeType: 'call',
   searchQuery: '',
   userEdgeTypes: loadUserEdgeTypes(),
+  clipboard: null,
   past: [],
   future: [],
 
@@ -158,12 +171,21 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const hasStructural = changes.some(
       (c) => c.type === 'remove' || c.type === 'add'
     );
-    set((s) => ({
-      ...(hasStructural
-        ? { past: pushSnapshot(s.past, s.nodes, s.edges), future: [] }
-        : {}),
-      nodes: applyNodeChanges(changes as NodeChange<AnodiNode>[], s.nodes),
-    }));
+    const hasSelection = changes.some((c) => c.type === 'select');
+    set((s) => {
+      const updatedNodes = applyNodeChanges(changes as NodeChange<AnodiNode>[], s.nodes);
+      // Sync selectedNodeIds when selection changes come through React Flow
+      const selectionUpdate = hasSelection
+        ? { selectedNodeIds: updatedNodes.filter((n) => n.selected).map((n) => n.id), selectedEdgeId: null }
+        : {};
+      return {
+        ...(hasStructural
+          ? { past: pushSnapshot(s.past, s.nodes, s.edges), future: [] }
+          : {}),
+        nodes: updatedNodes,
+        ...selectionUpdate,
+      };
+    });
   },
 
   onEdgesChange: (changes) => {
@@ -267,11 +289,72 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }));
   },
 
-  selectNode: (id) => set({ selectedNodeId: id, selectedEdgeId: null }),
+  selectNode: (id) => set({ selectedNodeIds: id ? [id] : [], selectedEdgeId: null }),
 
-  selectEdge: (id) => set({ selectedEdgeId: id, selectedNodeId: null }),
+  toggleNodeSelection: (id) => set((s) => {
+    const idx = s.selectedNodeIds.indexOf(id);
+    const next = idx >= 0
+      ? s.selectedNodeIds.filter((nid) => nid !== id)
+      : [...s.selectedNodeIds, id];
+    return { selectedNodeIds: next, selectedEdgeId: null };
+  }),
+
+  selectEdge: (id) => set({ selectedEdgeId: id, selectedNodeIds: [] }),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  copySelection: () => {
+    const { nodes, edges, selectedNodeIds } = get();
+    if (selectedNodeIds.length === 0) return;
+    const selectedSet = new Set(selectedNodeIds);
+    const copiedNodes = nodes.filter((n) => selectedSet.has(n.id));
+    // Copy edges only when both endpoints are in the selected group
+    const copiedEdges = edges.filter(
+      (e) => selectedSet.has(e.source) && selectedSet.has(e.target)
+    );
+    set({ clipboard: { nodes: copiedNodes, edges: copiedEdges } });
+  },
+
+  pasteSelection: (offset) => {
+    const { clipboard } = get();
+    if (!clipboard || clipboard.nodes.length === 0) return;
+    const dx = offset?.x ?? 50;
+    const dy = offset?.y ?? 50;
+    // Build old-id → new-id mapping
+    const idMap = new Map<string, string>();
+    const newNodes: AnodiNode[] = clipboard.nodes.map((n) => {
+      const newId = `node-${nodeCounter++}`;
+      idMap.set(n.id, newId);
+      return {
+        ...n,
+        id: newId,
+        position: { x: n.position.x + dx, y: n.position.y + dy },
+        selected: true,
+        data: { ...n.data },
+      };
+    });
+    // Re-map edges to point to new node IDs
+    const newEdges: AnodiEdge[] = clipboard.edges
+      .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+      .map((e) => ({
+        ...e,
+        id: `edge-${edgeCounter++}`,
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        data: e.data ? { ...e.data } : undefined,
+      }));
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      nodes: [
+        // Deselect existing nodes
+        ...s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+        ...newNodes,
+      ],
+      edges: [...s.edges, ...newEdges],
+      selectedNodeIds: newNodes.map((n) => n.id),
+    }));
+  },
 
   loadGraph: (nodes, edges, importedUserEdgeTypes) => {
     // Reset counter based on imported node IDs to avoid collisions
@@ -291,7 +374,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       : get().userEdgeTypes;
     if (importedUserEdgeTypes) saveUserEdgeTypes(restoredEdgeTypes);
 
-    set({ nodes, edges, userEdgeTypes: restoredEdgeTypes, selectedNodeId: null, selectedEdgeId: null, searchQuery: '', past: [], future: [] });
+    set({ nodes, edges, userEdgeTypes: restoredEdgeTypes, selectedNodeIds: [], selectedEdgeId: null, searchQuery: '', past: [], future: [] });
   },
 
   undo: () => {

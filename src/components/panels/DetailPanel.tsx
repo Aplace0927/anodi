@@ -28,7 +28,7 @@ function parseHexAddr(s: string): number {
 }
 
 export default function DetailPanel() {
-  const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const selectNode = useGraphStore((s) => s.selectNode);
@@ -37,6 +37,7 @@ export default function DetailPanel() {
 
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
 
+  const selectedNodeId = selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
   const node = nodes.find((n) => n.id === selectedNodeId);
 
   const connectedEdges = edges.filter(

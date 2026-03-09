@@ -13,13 +13,15 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
   const redo = useGraphStore((s) => s.redo);
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
   const selectNode = useGraphStore((s) => s.selectNode);
-  const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
   const selectEdge = useGraphStore((s) => s.selectEdge);
   const selectedEdgeId = useGraphStore((s) => s.selectedEdgeId);
   const nodes = useGraphStore((s) => s.nodes);
   const onNodesChange = useGraphStore((s) => s.onNodesChange);
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
   const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
+  const copySelection = useGraphStore((s) => s.copySelection);
+  const pasteSelection = useGraphStore((s) => s.pasteSelection);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -47,6 +49,20 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
       if ((mod && key === 'z' && e.shiftKey) || (mod && key === 'y')) {
         e.preventDefault();
         redo();
+        return;
+      }
+
+      // Copy: Cmd/Ctrl + C
+      if (mod && key === 'c' && !isInput) {
+        e.preventDefault();
+        copySelection();
+        return;
+      }
+
+      // Paste: Cmd/Ctrl + V
+      if (mod && key === 'v' && !isInput) {
+        e.preventDefault();
+        pasteSelection();
         return;
       }
 
@@ -87,10 +103,10 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
         }
       }
 
-      // Delete selected node: Delete or Backspace
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+      // Delete selected nodes: Delete or Backspace
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIds.length > 0) {
         e.preventDefault();
-        onNodesChange([{ type: 'remove', id: selectedNodeId }]);
+        onNodesChange(selectedNodeIds.map((id) => ({ type: 'remove' as const, id })));
         selectNode(null);
         return;
       }
@@ -122,7 +138,7 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
         return;
       }
     },
-    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeId, selectNode, selectedEdgeId, selectEdge, nodes, onNodesChange, onEdgesChange, userEdgeTypes, observerMode]
+    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeIds, selectNode, selectedEdgeId, selectEdge, nodes, onNodesChange, onEdgesChange, userEdgeTypes, observerMode, copySelection, pasteSelection]
   );
 
   useEffect(() => {
