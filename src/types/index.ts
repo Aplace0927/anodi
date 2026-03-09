@@ -94,7 +94,31 @@ export interface NotepadData extends Record<string, unknown> {
   nodeColor?: string;
 }
 
-export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData | NotepadData;
+export interface GroupData extends Record<string, unknown> {
+  kind: 'group';
+  name?: string;
+  groupColor?: string;
+  memberNodeIds: string[];
+  /** Computed width of the group (set by recomputeGroupBounds). */
+  computedWidth?: number;
+  /** Computed height of the group (set by recomputeGroupBounds). */
+  computedHeight?: number;
+}
+
+export type NodeData = SourceCodeData | ClassDiagramData | MemoryLayoutData | NotepadData | GroupData;
+
+// ── Group helpers ────────────────────────────────────────────────
+
+/** Padding (px) around member nodes inside a group visual. */
+export const GROUP_PADDING = 40;
+/** Height (px) reserved for the group name header. */
+export const GROUP_HEADER_HEIGHT = 36;
+/** Minimum visual width when group is empty. */
+export const GROUP_MIN_WIDTH = 200;
+/** Minimum visual height when group is empty. */
+export const GROUP_MIN_HEIGHT = 120;
+/** Default long-press delay (ms) for add/remove node to/from group. */
+export const GROUP_LONG_PRESS_MS = 600;
 
 // ── Edge types ───────────────────────────────────────────────────
 

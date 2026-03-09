@@ -4,6 +4,7 @@ import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship, UserEdgeType } from '../types';
 import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, BUILTIN_EDGE_SHORTCUT, MAX_USER_EDGE_TYPES, USER_EDGE_SHORTCUT_KEYS, getEdgeStyle } from '../types';
 import AddNodeDialog from './dialogs/AddNodeDialog';
+import AddGroupDialog from './dialogs/AddGroupDialog';
 import AddEdgeTypeDialog from './dialogs/AddEdgeTypeDialog';
 import { exportToPng, exportToPdf, exportToJson, importFromJson } from '../utils/export';
 
@@ -12,12 +13,14 @@ interface ToolbarProps {
   toggleTheme: () => void;
   showAddNode: boolean;
   setShowAddNode: (v: boolean) => void;
+  showAddGroup: boolean;
+  setShowAddGroup: (v: boolean) => void;
   getViewportCenter?: () => { x: number; y: number };
   observerMode: boolean;
   setObserverMode: (v: boolean) => void;
 }
 
-export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNode, getViewportCenter, observerMode, setObserverMode }: ToolbarProps) {
+export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNode, showAddGroup, setShowAddGroup, getViewportCenter, observerMode, setObserverMode }: ToolbarProps) {
   const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [showAddEdgeType, setShowAddEdgeType] = useState(false);
@@ -25,6 +28,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
+  const [showAddDropdown, setShowAddDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Detect narrow viewport
@@ -117,16 +121,40 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
             <img src={theme === 'dark' ? '/dark.svg' : '/light.svg'} alt="Anodi" className="inline-block h-5 w-5 mr-1 -mt-0.5" />
             </a>
 
-          {/* Add node – emphasized */}
+          {/* Add node / group – dropdown */}
           {!observerMode && (
-            <button
-              onClick={() => setShowAddNode(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2 sm:px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 active:scale-95 transition-all"
-              title="Add Node (N)"
-            >
-              <Plus size={15} />
-              {!isCompact && <span>Add Node</span>}
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowAddDropdown((v) => !v)}
+                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2 sm:px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 active:scale-95 transition-all"
+                title="Add Node (N) / Group (G)"
+              >
+                <Plus size={15} />
+                {!isCompact && <span>Add</span>}
+                <ChevronDown size={14} className="text-white/70" />
+              </button>
+
+              {showAddDropdown && (
+                <div className="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 z-30">
+                  <button
+                    onClick={() => { setShowAddDropdown(false); setShowAddNode(true); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                  >
+                    <Plus size={14} />
+                    Add Node
+                    <span className="ml-auto text-[10px] text-gray-400">N</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowAddDropdown(false); setShowAddGroup(true); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                  >
+                    <Plus size={14} />
+                    Add Group
+                    <span className="ml-auto text-[10px] text-gray-400">G</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Edge type selector – emphasized with active edge color */}
@@ -412,6 +440,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
       />
 
       {showAddNode && <AddNodeDialog onClose={() => setShowAddNode(false)} getViewportCenter={getViewportCenter} />}
+      {showAddGroup && <AddGroupDialog onClose={() => setShowAddGroup(false)} getViewportCenter={getViewportCenter} />}
       {showAddEdgeType && (
         <AddEdgeTypeDialog
           editType={editingEdgeType}

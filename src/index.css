@@ -83,3 +83,25 @@ body,
 .react-flow__handle.source.anodi-connected {
   opacity: 1 !important;
 }
+
+/* ── Group node z-index ordering ───────────────────────────────── */
+/* Remove the stacking context from the nodes container so that
+   individual node z-indices are respected relative to the viewport.
+   This allows group nodes (z-index: -1000) to sit below edges. */
+
+.react-flow__nodes {
+  z-index: auto !important;
+}
+
+.react-flow__edges {
+  z-index: 5 !important;
+}
+
+.react-flow__edgelabel-renderer {
+  z-index: 6 !important;
+}
+
+/* Group nodes should not show handles */
+.react-flow__node[data-id^="node-"].group-node-wrapper .react-flow__handle {
+  display: none !important;
+}
