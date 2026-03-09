@@ -9,7 +9,7 @@ import {
   ReactFlowProvider,
   MarkerType,
 } from '@xyflow/react';
-import type { NodeMouseHandler, EdgeMouseHandler, Node } from '@xyflow/react';
+import type { NodeMouseHandler, EdgeMouseHandler, Node, NodeDragHandler } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { useGraphStore } from './store/graphStore';
@@ -28,7 +28,7 @@ import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { AnodiNode, AnodiEdge, GroupData, NodeData } from './types';
-import { getEdgeStyle, GROUP_LONG_PRESS_MS } from './types';
+import { getEdgeStyle } from './types';
 
 const nodeTypes = {
   source: SourceCodeNode,
@@ -69,8 +69,18 @@ function AppInner() {
   // ── Group drag tracking ──
   const groupDragStartPos = useRef<{ x: number; y: number } | null>(null);
 
-  // ── Long-press tracking for add/remove node to/from group ──
+  // ── Drag vs click tracking ──
+  // React Flow fires onNodeClick even after a drag. We use this ref to
+  // prevent the side-panel from opening when the user was actually dragging.
+  const isDragging = useRef(false);
+
+  // ── Continuous drag tracking for add/remove node to/from group ──
+  // The long-press timer sets `longPressReady` after the configured delay.
+  // While ready, every onNodeDrag event checks if the node is over a group
+  // and updates the overlay icon accordingly.  On drag stop, if the icon is
+  // showing, the add/remove action fires.
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressReady = useRef(false);
   const [longPressGroupId, setLongPressGroupId] = useState<string | null>(null);
   const [longPressAction, setLongPressAction] = useState<'+' | '-' | null>(null);
   const [longPressDragNodeId, setLongPressDragNodeId] = useState<string | null>(null);
@@ -135,8 +145,10 @@ function AppInner() {
         style: {
           ...n.style,
           opacity,
-          outline: isMatch && searchQuery ? '2px solid #f59e0b' : undefined,
-          borderRadius: isGroup ? 16 : 12,
+          // Don't apply outline/borderRadius on group nodes – the GroupNode
+          // component handles its own styling; the wrapper must be invisible.
+          outline: !isGroup && isMatch && searchQuery ? '2px solid #f59e0b' : undefined,
+          borderRadius: isGroup ? undefined : 12,
         },
       };
     });
@@ -171,6 +183,8 @@ function AppInner() {
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
+      // Ignore clicks that are actually the end of a drag gesture
+      if (isDragging.current) return;
       // When shift is held, React Flow handles multi-selection natively
       // via multiSelectionKeyCode="Shift" – don't override it here.
       if (!_event.shiftKey) {
@@ -195,40 +209,81 @@ function AppInner() {
   // ── Group drag handling ──
   const handleNodeDragStart = useCallback(
     (_event: React.MouseEvent, node: Node) => {
+      isDragging.current = true;
       if (node.type === 'group') {
         groupDragStartPos.current = { x: node.position.x, y: node.position.y };
       } else {
-        // Non-group node drag: start long-press timer to detect add-to-group
+        // Non-group node drag: start long-press timer.
+        // After the delay, continuous position checking is enabled.
         const dragNodeId = node.id;
+        longPressReady.current = false;
         longPressTimer.current = setTimeout(() => {
-          // Check if the node is hovering over a group
-          const currentNodes = useGraphStore.getState().nodes;
-          const dragNode = currentNodes.find((n) => n.id === dragNodeId);
-          if (!dragNode) return;
-
-          for (const gn of currentNodes) {
-            if (gn.type !== 'group') continue;
-            const gd = gn.data as GroupData;
-            const gw = gd.computedWidth || 200;
-            const gh = gd.computedHeight || 120;
-            if (
-              dragNode.position.x >= gn.position.x &&
-              dragNode.position.x <= gn.position.x + gw &&
-              dragNode.position.y >= gn.position.y &&
-              dragNode.position.y <= gn.position.y + gh
-            ) {
-              // Node is over this group
-              const alreadyMember = gd.memberNodeIds.includes(dragNodeId);
-              setLongPressGroupId(gn.id);
-              setLongPressAction(alreadyMember ? '-' : '+');
-              setLongPressDragNodeId(dragNodeId);
-              return;
-            }
-          }
+          longPressReady.current = true;
+          setLongPressDragNodeId(dragNodeId);
         }, groupHoverDelay);
       }
     },
     [groupHoverDelay]
+  );
+
+  // Helper: check if a node is hovering over any group and update overlay
+  const checkNodeOverGroup = useCallback(
+    (dragNode: Node) => {
+      const currentNodes = useGraphStore.getState().nodes;
+
+      // Check which group (if any) this node belongs to
+      const homeGroup = currentNodes.find(
+        (n) => n.type === 'group' && (n.data as GroupData).memberNodeIds.includes(dragNode.id)
+      );
+
+      for (const gn of currentNodes) {
+        if (gn.type !== 'group') continue;
+        const gd = gn.data as GroupData;
+        const gw = gd.computedWidth || 200;
+        const gh = gd.computedHeight || 120;
+        const isOverGroup =
+          dragNode.position.x >= gn.position.x &&
+          dragNode.position.x <= gn.position.x + gw &&
+          dragNode.position.y >= gn.position.y &&
+          dragNode.position.y <= gn.position.y + gh;
+
+        if (isOverGroup) {
+          const alreadyMember = gd.memberNodeIds.includes(dragNode.id);
+          if (!alreadyMember) {
+            // Node is over a group it doesn't belong to → show "+"
+            setLongPressGroupId(gn.id);
+            setLongPressAction('+');
+            return;
+          }
+          // Node is over its own group → no action (do NOT remove)
+          setLongPressGroupId(null);
+          setLongPressAction(null);
+          return;
+        }
+      }
+
+      // Node is NOT over any group
+      if (homeGroup) {
+        // Node was in a group but is now outside → show "-" to remove
+        setLongPressGroupId(homeGroup.id);
+        setLongPressAction('-');
+      } else {
+        // Node is not in any group and not over any group → clear
+        setLongPressGroupId(null);
+        setLongPressAction(null);
+      }
+    },
+    []
+  );
+
+  // Continuous drag tracking — fires on every move while dragging
+  const handleNodeDrag: NodeDragHandler = useCallback(
+    (_event, node) => {
+      if (node.type === 'group') return;
+      if (!longPressReady.current) return;
+      checkNodeOverGroup(node);
+    },
+    [checkNodeOverGroup]
   );
 
   const handleNodeDragStop = useCallback(
@@ -238,6 +293,7 @@ function AppInner() {
         clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
       }
+      longPressReady.current = false;
 
       if (node.type === 'group' && groupDragStartPos.current) {
         // Group drag: move all member nodes by the same delta
@@ -249,11 +305,13 @@ function AppInner() {
         }
       }
 
-      // Handle long-press add/remove
+      // Handle add/remove — only if the overlay icon is currently shown
       if (longPressGroupId && longPressDragNodeId && longPressAction) {
         if (longPressAction === '+') {
           addNodeToGroup(longPressGroupId, longPressDragNodeId);
-        } else {
+        } else if (longPressAction === '-') {
+          // Remove: the '-' icon is shown only when the node has been
+          // dragged OUTSIDE its home group, so it's safe to remove.
           removeNodeFromGroup(longPressGroupId, longPressDragNodeId);
         }
       }
@@ -265,6 +323,12 @@ function AppInner() {
 
       // Recompute group bounds after any drag
       recomputeGroupBounds();
+
+      // Reset isDragging after a short delay so that the click event
+      // (which fires after mouseup) is suppressed.
+      requestAnimationFrame(() => {
+        isDragging.current = false;
+      });
     },
     [moveGroupMembers, recomputeGroupBounds, addNodeToGroup, removeNodeFromGroup, longPressGroupId, longPressDragNodeId, longPressAction]
   );
@@ -301,6 +365,7 @@ function AppInner() {
             onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
             onNodeDragStart={observerMode ? undefined : handleNodeDragStart}
+            onNodeDrag={observerMode ? undefined : handleNodeDrag}
             onNodeDragStop={observerMode ? undefined : handleNodeDragStop}
             nodesDraggable={!observerMode}
             nodesConnectable={!observerMode}

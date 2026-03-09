@@ -105,3 +105,28 @@ body,
 .react-flow__node[data-id^="node-"].group-node-wrapper .react-flow__handle {
   display: none !important;
 }
+
+/* ── Group node selection styling ──────────────────────────────── */
+/* Suppress the default React Flow selection outline/border on group
+   nodes.  Without this, selected groups show an unwanted rectangle. */
+
+.react-flow__node-group {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  --xy-node-border: none !important;
+  --xy-node-border-default: none !important;
+  --xy-node-boxshadow-selected: none !important;
+  --xy-node-boxshadow-selected-default: none !important;
+}
+
+.react-flow__node-group.selectable.selected,
+.react-flow__node-group.selectable:focus,
+.react-flow__node-group.selectable:focus-visible,
+.react-flow__node-group.selected {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
