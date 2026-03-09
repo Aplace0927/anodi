@@ -86,6 +86,9 @@ function AppInner() {
   const [longPressGroupId, setLongPressGroupId] = useState<string | null>(null);
   const [longPressAction, setLongPressAction] = useState<'+' | '-' | null>(null);
   const [longPressDragNodeId, setLongPressDragNodeId] = useState<string | null>(null);
+  // Store last mouse screen position so we can trigger detection when idle
+  const lastMousePos = useRef<{ x: number; y: number } | null>(null);
+  const lastDragNodeId = useRef<string | null>(null);
 
   // Expose a helper to get the viewport center in flow coordinates
   const getViewportCenter = useCallback(() => {
@@ -143,10 +146,15 @@ function AppInner() {
 
       // Groups get very low z-index; during long-press, temporarily reorder
       let zIndex: number | undefined;
+      // Pass long-press action to the target group so it can show border glow
+      let dataOverride = n.data;
       if (isGroup) {
         zIndex = -1000;
         // During long-press, the target group should be above other groups
-        if (longPressGroupId === n.id) zIndex = -500;
+        if (longPressGroupId === n.id) {
+          zIndex = -500;
+          dataOverride = { ...n.data, longPressAction: longPressAction } as GroupData & { longPressAction?: '+' | '-' | null };
+        }
       } else if (longPressDragNodeId === n.id && longPressGroupId) {
         // The dragged node goes to the top during long-press
         zIndex = 2000;
@@ -154,6 +162,7 @@ function AppInner() {
 
       return {
         ...n,
+        data: dataOverride,
         selected: isSelected,
         zIndex: zIndex ?? n.zIndex,
         style: {
@@ -166,7 +175,7 @@ function AppInner() {
         },
       };
     });
-  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery, longPressGroupId, longPressDragNodeId, draggingGroupId]);
+  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery, longPressGroupId, longPressAction, longPressDragNodeId, draggingGroupId]);
 
   // Annotate edges with highlight state and arrow markers
   const styledEdges = useMemo((): AnodiEdge[] => {
@@ -220,36 +229,15 @@ function AppInner() {
     selectEdge(null);
   }, [selectNode, selectEdge]);
 
-  // ── Group drag handling ──
-  const handleNodeDragStart = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      isDragging.current = true;
-      if (node.type === 'group') {
-        groupDragStartPos.current = { x: node.position.x, y: node.position.y };
-        setDraggingGroupId(node.id);
-      } else {
-        // Non-group node drag: start long-press timer.
-        // After the delay, continuous position checking is enabled.
-        const dragNodeId = node.id;
-        longPressReady.current = false;
-        longPressTimer.current = setTimeout(() => {
-          longPressReady.current = true;
-          setLongPressDragNodeId(dragNodeId);
-        }, groupHoverDelay);
-      }
-    },
-    [groupHoverDelay]
-  );
-
   // Helper: check if the mouse is hovering over any group and update overlay.
-  // Uses the actual mouse position (converted to flow coords) instead of the
+  // Uses screen coordinates (converted to flow coords) instead of the
   // node's top-left corner so the detection feels natural.
   const checkNodeOverGroup = useCallback(
-    (dragNodeId: string, mouseEvent: React.MouseEvent) => {
+    (dragNodeId: string, screenX: number, screenY: number) => {
       const currentNodes = useGraphStore.getState().nodes;
       const mouseFlowPos = reactFlowInstance.screenToFlowPosition({
-        x: mouseEvent.clientX,
-        y: mouseEvent.clientY,
+        x: screenX,
+        y: screenY,
       });
 
       // Check which group (if any) this node belongs to
@@ -297,12 +285,42 @@ function AppInner() {
     [reactFlowInstance]
   );
 
+  // ── Group drag handling ──
+  const handleNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      isDragging.current = true;
+      if (node.type === 'group') {
+        groupDragStartPos.current = { x: node.position.x, y: node.position.y };
+        setDraggingGroupId(node.id);
+      } else {
+        // Non-group node drag: start long-press timer.
+        // After the delay, continuous position checking is enabled.
+        const dragNodeId = node.id;
+        lastMousePos.current = { x: _event.clientX, y: _event.clientY };
+        lastDragNodeId.current = dragNodeId;
+        longPressReady.current = false;
+        longPressTimer.current = setTimeout(() => {
+          longPressReady.current = true;
+          setLongPressDragNodeId(dragNodeId);
+          // Immediately check the current position so that the indicator
+          // appears even if the user is holding still after dragging out.
+          if (lastMousePos.current && lastDragNodeId.current) {
+            checkNodeOverGroup(lastDragNodeId.current, lastMousePos.current.x, lastMousePos.current.y);
+          }
+        }, groupHoverDelay);
+      }
+    },
+    [groupHoverDelay, checkNodeOverGroup]
+  );
+
   // Continuous drag tracking — fires on every move while dragging
   const handleNodeDrag: OnNodeDrag = useCallback(
     (_event, node) => {
       if (node.type === 'group') return;
+      // Always keep the last mouse position up to date for idle detection
+      lastMousePos.current = { x: _event.clientX, y: _event.clientY };
       if (!longPressReady.current) return;
-      checkNodeOverGroup(node.id, _event);
+      checkNodeOverGroup(node.id, _event.clientX, _event.clientY);
     },
     [checkNodeOverGroup]
   );
@@ -344,6 +362,8 @@ function AppInner() {
       setLongPressGroupId(null);
       setLongPressAction(null);
       setLongPressDragNodeId(null);
+      lastMousePos.current = null;
+      lastDragNodeId.current = null;
 
       // Recompute group bounds after any drag
       recomputeGroupBounds();
@@ -428,61 +448,6 @@ function AppInner() {
           return <DetailPanel />;
         })()}
         {selectedEdgeId && <EdgeDetailPanel />}
-
-        {/* Long-press overlay */}
-        {longPressGroupId && longPressAction && longPressDragNodeId && (
-          <LongPressOverlay
-            groupId={longPressGroupId}
-            action={longPressAction}
-            nodes={nodes}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Overlay shown on a group during long-press add/remove */
-function LongPressOverlay({
-  action,
-}: {
-  groupId: string;
-  action: '+' | '-';
-  nodes: AnodiNode[];
-}) {
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-        pointerEvents: 'none',
-        zIndex: 1500,
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          backgroundColor: action === '+' ? '#22c55e' : '#ef4444',
-          color: '#fff',
-          fontSize: 32,
-          fontWeight: 700,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-        }}
-      >
-        {action}
       </div>
     </div>
   );
