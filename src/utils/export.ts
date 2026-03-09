@@ -22,6 +22,26 @@ function getFlowElement(): HTMLElement | null {
   return document.querySelector('.react-flow__viewport') as HTMLElement | null;
 }
 
+/**
+ * Copy every textarea's `.value` (controlled by React) into its DOM text
+ * content so that serialisation-based exporters (html-to-image, dom-to-svg)
+ * capture the visible text.  Returns a cleanup function that restores the
+ * original text content.
+ */
+function flushTextareaValues(root: HTMLElement): () => void {
+  const textareas = root.querySelectorAll('textarea');
+  const originals: { el: HTMLTextAreaElement; text: string }[] = [];
+  textareas.forEach((ta) => {
+    originals.push({ el: ta, text: ta.textContent ?? '' });
+    ta.textContent = ta.value;
+  });
+  return () => {
+    originals.forEach(({ el, text }) => {
+      el.textContent = text;
+    });
+  };
+}
+
 /** Detect current theme and return a suitable background colour. */
 function themeBgColor(): string {
   return document.documentElement.classList.contains('dark')
@@ -66,6 +86,9 @@ export async function exportToPng() {
     Math.min(2, MAX_PNG_DIMENSION / imageWidth, MAX_PNG_DIMENSION / imageHeight),
   );
 
+  // Flush textarea values into DOM text content so html-to-image can capture them
+  const restoreTextareas = flushTextareaValues(el);
+
   const dataUrl = await toPng(el, {
     backgroundColor: themeBgColor(),
     width: imageWidth,
@@ -77,6 +100,8 @@ export async function exportToPng() {
       transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
     },
   });
+
+  restoreTextareas();
 
   const link = document.createElement('a');
   link.download = 'anodi-board.png';
@@ -197,9 +222,14 @@ export async function exportToPdf() {
     }
   });
 
+  // Flush textarea values into DOM text content so dom-to-svg can capture them
+  const restoreTextareas = flushTextareaValues(flowEl);
+
   // Capture the flow element (with nodes, edges, data) to SVG
   const svgDocument = elementToSVG(flowEl);
   await inlineResources(svgDocument.documentElement);
+
+  restoreTextareas();
 
   // Restore original styles
   flowEl.style.width = origFlowW;
