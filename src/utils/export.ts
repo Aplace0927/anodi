@@ -85,6 +85,57 @@ export async function exportToPng() {
 }
 
 // ── PDF export ──────────────────────────────────────────────────────
+
+/** Attributes that may contain `url(#id)` references to SVG resources. */
+const URL_REF_ATTRS = [
+  'fill', 'stroke', 'clip-path', 'mask', 'filter',
+  'marker-start', 'marker-mid', 'marker-end',
+];
+
+/**
+ * Remove `url(#id)` attribute values whose target ID doesn't exist in the SVG.
+ *
+ * `dom-to-svg` can produce SVG with dangling references (e.g. React Flow edge
+ * markers) that cause svg2pdf.js to crash with
+ *   "Cannot read properties of undefined (reading 'apply')"
+ * because its internal ID map has no entry for the referenced element.
+ */
+function removeDanglingReferences(svg: SVGSVGElement): void {
+  const allElements = svg.querySelectorAll('*');
+
+  // Collect every defined id in the document
+  const definedIds = new Set<string>();
+  allElements.forEach((el) => {
+    const id = el.getAttribute('id');
+    if (id) definedIds.add(id);
+  });
+
+  const urlRefRe = /url\(\s*['"]?#([^'")]+)['"]?\s*\)/;
+
+  allElements.forEach((el) => {
+    // Clean url(#id) attribute references
+    for (const attr of URL_REF_ATTRS) {
+      const val = el.getAttribute(attr);
+      if (!val) continue;
+      const m = val.match(urlRefRe);
+      if (m && !definedIds.has(m[1])) {
+        el.removeAttribute(attr);
+      }
+    }
+
+    // Clean <use href="#id"> / <use xlink:href="#id"> references
+    if (el.tagName.toLowerCase() === 'use') {
+      for (const hrefAttr of ['href', 'xlink:href']) {
+        const href = el.getAttribute(hrefAttr);
+        if (href && href.startsWith('#') && !definedIds.has(href.slice(1))) {
+          el.remove();
+          break;
+        }
+      }
+    }
+  });
+}
+
 /** Convert an ArrayBuffer to a base64-encoded string. */
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -160,6 +211,11 @@ export async function exportToPdf() {
   svgElement.setAttribute('width', String(imageWidth));
   svgElement.setAttribute('height', String(imageHeight));
 
+  // Strip url(#id) references whose targets don't exist in the captured SVG.
+  // dom-to-svg may produce orphan refs (e.g. React Flow arrow markers) that
+  // crash svg2pdf.js.
+  removeDanglingReferences(svgElement);
+
   const orientation = imageWidth > imageHeight ? 'landscape' : 'portrait';
   const pdf = new jsPDF({
     orientation,
@@ -186,7 +242,30 @@ export async function exportToPdf() {
   pdf.rect(0, 0, imageWidth, imageHeight, 'F');
 
   // Add SVG as vector content (not rasterised)
-  await pdf.svg(svgElement, { x: 0, y: 0, width: imageWidth, height: imageHeight });
+  try {
+    await pdf.svg(svgElement, { x: 0, y: 0, width: imageWidth, height: imageHeight });
+  } catch (err) {
+    console.warn('[anodi] svg2pdf vector render failed, falling back to rasterised export', err);
+    // Fall back to rasterised PNG embedded in the PDF
+    const canvas = document.createElement('canvas');
+    canvas.width = imageWidth * 2;
+    canvas.height = imageHeight * 2;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(2, 2);
+    const svgBlob = new Blob([new XMLSerializer().serializeToString(svgElement)], {
+      type: 'image/svg+xml;charset=utf-8',
+    });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = svgUrl;
+    });
+    ctx.drawImage(img, 0, 0, imageWidth, imageHeight);
+    URL.revokeObjectURL(svgUrl);
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imageWidth, imageHeight);
+  }
   pdf.save('anodi-board.pdf');
 }
 
