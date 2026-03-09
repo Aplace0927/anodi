@@ -9,7 +9,7 @@ import {
   ReactFlowProvider,
   MarkerType,
 } from '@xyflow/react';
-import type { NodeMouseHandler, EdgeMouseHandler, Node, NodeDragHandler } from '@xyflow/react';
+import type { NodeMouseHandler, EdgeMouseHandler, Node, OnNodeDrag } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { useGraphStore } from './store/graphStore';
@@ -298,11 +298,11 @@ function AppInner() {
   );
 
   // Continuous drag tracking — fires on every move while dragging
-  const handleNodeDrag: NodeDragHandler = useCallback(
+  const handleNodeDrag: OnNodeDrag = useCallback(
     (_event, node) => {
       if (node.type === 'group') return;
       if (!longPressReady.current) return;
-      checkNodeOverGroup(node.id, _event as unknown as React.MouseEvent);
+      checkNodeOverGroup(node.id, _event);
     },
     [checkNodeOverGroup]
   );
