@@ -355,20 +355,12 @@ function AppInner() {
 
 /** Overlay shown on a group during long-press add/remove */
 function LongPressOverlay({
-  groupId,
   action,
-  nodes,
 }: {
   groupId: string;
   action: '+' | '-';
   nodes: AnodiNode[];
 }) {
-  const groupNode = nodes.find((n) => n.id === groupId);
-  if (!groupNode) return null;
-  const gd = groupNode.data as GroupData;
-  const width = gd.computedWidth || 200;
-  const height = gd.computedHeight || 120;
-  const color = gd.groupColor || '#6366f1';
 
   return (
     <div
