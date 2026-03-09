@@ -110,7 +110,7 @@ function removeDanglingReferences(svg: SVGSVGElement): void {
     if (id) definedIds.add(id);
   });
 
-  const urlRefRe = /url\(\s*['"]?#([^'")]+)['"]?\s*\)/;
+  const urlRefRe = /url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/;
 
   allElements.forEach((el) => {
     // Clean url(#id) attribute references
@@ -250,7 +250,8 @@ export async function exportToPdf() {
     const canvas = document.createElement('canvas');
     canvas.width = imageWidth * 2;
     canvas.height = imageHeight * 2;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Failed to get 2D canvas context');
     ctx.scale(2, 2);
     const svgBlob = new Blob([new XMLSerializer().serializeToString(svgElement)], {
       type: 'image/svg+xml;charset=utf-8',
@@ -259,7 +260,7 @@ export async function exportToPdf() {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
-      i.onerror = reject;
+      i.onerror = () => reject(new Error('Failed to load SVG image for rasterisation'));
       i.src = svgUrl;
     });
     ctx.drawImage(img, 0, 0, imageWidth, imageHeight);
