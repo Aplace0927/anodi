@@ -23,7 +23,7 @@ function GroupNodeComponent({ data }: NodeProps) {
         height,
         borderRadius: 16,
         border: `2px solid ${glowColor ?? color}`,
-        backgroundColor: `${color}20`,
+        backgroundColor: `${color}33`,
         position: 'relative',
         pointerEvents: 'all',
         boxShadow: glowColor
@@ -70,7 +70,7 @@ function GroupNodeComponent({ data }: NodeProps) {
         style={{
           height: GROUP_HEADER_HEIGHT,
           borderRadius: '14px 14px 0 0',
-          backgroundColor: `${color}40`,
+          backgroundColor: color,
           display: 'flex',
           alignItems: 'center',
           paddingLeft: 12,
@@ -81,7 +81,7 @@ function GroupNodeComponent({ data }: NodeProps) {
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: textColor === '#ffffff' ? '#fff' : color,
+            color: textColor,
             userSelect: 'none',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -94,7 +94,7 @@ function GroupNodeComponent({ data }: NodeProps) {
           style={{
             marginLeft: 8,
             fontSize: 10,
-            color: textColor === '#ffffff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)',
+            color: textColor === '#ffffff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)',
             userSelect: 'none',
           }}
         >

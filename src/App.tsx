@@ -180,9 +180,21 @@ function AppInner() {
   // Annotate edges with highlight state and arrow markers
   const styledEdges = useMemo((): AnodiEdge[] => {
     const hasSelection = selectedNodeIds.length > 0;
+    // Collect member IDs of the group currently being dragged so we can hide related edges
+    const draggingGroupMemberIds = new Set<string>();
+    if (draggingGroupId) {
+      const gn = nodes.find((n) => n.id === draggingGroupId);
+      if (gn?.type === 'group') {
+        const gd = gn.data as GroupData;
+        gd.memberNodeIds.forEach((mid) => draggingGroupMemberIds.add(mid));
+      }
+    }
     return edges.map((e) => {
       const isConnectedToSelected =
         selectedIdSet.has(e.source) || selectedIdSet.has(e.target);
+      // Hide edges connected to members of the group being dragged
+      const isConnectedToDraggingGroup =
+        draggingGroupMemberIds.has(e.source) || draggingGroupMemberIds.has(e.target);
       return {
         ...e,
         animated: isConnectedToSelected,
@@ -194,15 +206,17 @@ function AppInner() {
           color: getEdgeStyle(e.data?.relationship ?? 'call', userEdgeTypes).color,
         },
         style: {
-          opacity: e.id === selectedEdgeId
-            ? 1
-            : hasSelection && !isConnectedToSelected
-              ? 0.2
-              : 0.6,
+          opacity: isConnectedToDraggingGroup
+            ? 0
+            : e.id === selectedEdgeId
+              ? 1
+              : hasSelection && !isConnectedToSelected
+                ? 0.2
+                : 0.6,
         },
       };
     });
-  }, [edges, selectedNodeIds, selectedIdSet, selectedEdgeId, userEdgeTypes]);
+  }, [edges, selectedNodeIds, selectedIdSet, selectedEdgeId, userEdgeTypes, draggingGroupId, nodes]);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
