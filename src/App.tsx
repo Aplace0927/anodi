@@ -68,6 +68,8 @@ function AppInner() {
 
   // ── Group drag tracking ──
   const groupDragStartPos = useRef<{ x: number; y: number } | null>(null);
+  // Track which group is currently being dragged so member nodes can be hidden
+  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
 
   // ── Drag vs click tracking ──
   // React Flow fires onNodeClick even after a drag. We use this ref to
@@ -117,6 +119,16 @@ function AppInner() {
   // Annotate nodes with selected/highlighted state
   const styledNodes = useMemo((): AnodiNode[] => {
     const hasSelection = selectedNodeIds.length > 0;
+    // Collect member IDs of the group currently being dragged
+    const draggingGroupMemberIds = new Set<string>();
+    if (draggingGroupId) {
+      const gn = nodes.find((n) => n.id === draggingGroupId);
+      if (gn?.type === 'group') {
+        const gd = gn.data as GroupData;
+        gd.memberNodeIds.forEach((mid) => draggingGroupMemberIds.add(mid));
+      }
+    }
+
     return nodes.map((n) => {
       const isSelected = selectedIdSet.has(n.id);
       const isNeighbor = neighborIds.has(n.id);
@@ -126,6 +138,8 @@ function AppInner() {
       let opacity = 1;
       if (hasSelection && !isSelected && !isNeighbor) opacity = 0.35;
       if (searchQuery && !isMatch) opacity = 0.3;
+      // Hide member nodes while their group is being dragged
+      if (draggingGroupMemberIds.has(n.id)) opacity = 0;
 
       // Groups get very low z-index; during long-press, temporarily reorder
       let zIndex: number | undefined;
@@ -152,7 +166,7 @@ function AppInner() {
         },
       };
     });
-  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery, longPressGroupId, longPressDragNodeId]);
+  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery, longPressGroupId, longPressDragNodeId, draggingGroupId]);
 
   // Annotate edges with highlight state and arrow markers
   const styledEdges = useMemo((): AnodiEdge[] => {
@@ -212,6 +226,7 @@ function AppInner() {
       isDragging.current = true;
       if (node.type === 'group') {
         groupDragStartPos.current = { x: node.position.x, y: node.position.y };
+        setDraggingGroupId(node.id);
       } else {
         // Non-group node drag: start long-press timer.
         // After the delay, continuous position checking is enabled.
@@ -226,14 +241,20 @@ function AppInner() {
     [groupHoverDelay]
   );
 
-  // Helper: check if a node is hovering over any group and update overlay
+  // Helper: check if the mouse is hovering over any group and update overlay.
+  // Uses the actual mouse position (converted to flow coords) instead of the
+  // node's top-left corner so the detection feels natural.
   const checkNodeOverGroup = useCallback(
-    (dragNode: Node) => {
+    (dragNodeId: string, mouseEvent: React.MouseEvent) => {
       const currentNodes = useGraphStore.getState().nodes;
+      const mouseFlowPos = reactFlowInstance.screenToFlowPosition({
+        x: mouseEvent.clientX,
+        y: mouseEvent.clientY,
+      });
 
       // Check which group (if any) this node belongs to
       const homeGroup = currentNodes.find(
-        (n) => n.type === 'group' && (n.data as GroupData).memberNodeIds.includes(dragNode.id)
+        (n) => n.type === 'group' && (n.data as GroupData).memberNodeIds.includes(dragNodeId)
       );
 
       for (const gn of currentNodes) {
@@ -242,38 +263,38 @@ function AppInner() {
         const gw = gd.computedWidth || 200;
         const gh = gd.computedHeight || 120;
         const isOverGroup =
-          dragNode.position.x >= gn.position.x &&
-          dragNode.position.x <= gn.position.x + gw &&
-          dragNode.position.y >= gn.position.y &&
-          dragNode.position.y <= gn.position.y + gh;
+          mouseFlowPos.x >= gn.position.x &&
+          mouseFlowPos.x <= gn.position.x + gw &&
+          mouseFlowPos.y >= gn.position.y &&
+          mouseFlowPos.y <= gn.position.y + gh;
 
         if (isOverGroup) {
-          const alreadyMember = gd.memberNodeIds.includes(dragNode.id);
+          const alreadyMember = gd.memberNodeIds.includes(dragNodeId);
           if (!alreadyMember) {
-            // Node is over a group it doesn't belong to → show "+"
+            // Mouse is over a group the node doesn't belong to → show "+"
             setLongPressGroupId(gn.id);
             setLongPressAction('+');
             return;
           }
-          // Node is over its own group → no action (do NOT remove)
+          // Mouse is over the node's own group → no action (do NOT remove)
           setLongPressGroupId(null);
           setLongPressAction(null);
           return;
         }
       }
 
-      // Node is NOT over any group
+      // Mouse is NOT over any group
       if (homeGroup) {
-        // Node was in a group but is now outside → show "-" to remove
+        // Node was in a group but mouse is now outside → show "-" to remove
         setLongPressGroupId(homeGroup.id);
         setLongPressAction('-');
       } else {
-        // Node is not in any group and not over any group → clear
+        // Node is not in any group and mouse not over any group → clear
         setLongPressGroupId(null);
         setLongPressAction(null);
       }
     },
-    []
+    [reactFlowInstance]
   );
 
   // Continuous drag tracking — fires on every move while dragging
@@ -281,7 +302,7 @@ function AppInner() {
     (_event, node) => {
       if (node.type === 'group') return;
       if (!longPressReady.current) return;
-      checkNodeOverGroup(node);
+      checkNodeOverGroup(node.id, _event as unknown as React.MouseEvent);
     },
     [checkNodeOverGroup]
   );
@@ -304,6 +325,9 @@ function AppInner() {
           moveGroupMembers(node.id, dx, dy);
         }
       }
+
+      // Clear group drag tracking (re-show member nodes)
+      setDraggingGroupId(null);
 
       // Handle add/remove — only if the overlay icon is currently shown
       if (longPressGroupId && longPressDragNodeId && longPressAction) {

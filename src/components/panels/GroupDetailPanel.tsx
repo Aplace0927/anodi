@@ -11,8 +11,6 @@ export default function GroupDetailPanel() {
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const updateNodeName = useGraphStore((s) => s.updateNodeName);
   const removeNodeFromGroup = useGraphStore((s) => s.removeNodeFromGroup);
-  const groupHoverDelay = useGraphStore((s) => s.groupHoverDelay);
-  const setGroupHoverDelay = useGraphStore((s) => s.setGroupHoverDelay);
 
   const selectedNodeId = selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
   const node = nodes.find((n) => n.id === selectedNodeId);
@@ -53,22 +51,6 @@ export default function GroupDetailPanel() {
           label="Group Color"
           value={data.groupColor}
           onChange={(color) => updateNodeData(node.id, { groupColor: color })}
-        />
-      </div>
-
-      {/* Long-press delay */}
-      <div className="border-b border-gray-300 px-4 py-3 dark:border-gray-700">
-        <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-          Long-press delay (ms)
-        </label>
-        <input
-          type="number"
-          min={200}
-          max={3000}
-          step={100}
-          value={groupHoverDelay}
-          onChange={(e) => setGroupHoverDelay(Math.max(200, Math.min(3000, parseInt(e.target.value, 10) || 600)))}
-          className="w-full rounded border border-gray-300 bg-gray-100 px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
         />
       </div>
 
