@@ -80,6 +80,15 @@ export function searchNodes(nodes: AnodiNode[], query: string): SearchMatch[] {
           context: preview || 'Empty notepad',
         });
       }
+    } else if (data.kind === 'group') {
+      if (name.toLowerCase().includes(q)) {
+        results.push({
+          nodeId: node.id,
+          nodeName: name,
+          nodeKind: 'group',
+          context: `Group (${data.memberNodeIds?.length ?? 0} nodes)`,
+        });
+      }
     }
   }
 

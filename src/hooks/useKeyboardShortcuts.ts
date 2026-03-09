@@ -5,10 +5,11 @@ import { BUILTIN_RELATIONSHIPS } from '../types';
 
 interface UseKeyboardShortcutsOptions {
   onOpenAddNode: () => void;
+  onOpenAddGroup: () => void;
   observerMode?: boolean;
 }
 
-export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboardShortcutsOptions) {
+export function useKeyboardShortcuts({ onOpenAddNode, onOpenAddGroup, observerMode }: UseKeyboardShortcutsOptions) {
   const undo = useGraphStore((s) => s.undo);
   const redo = useGraphStore((s) => s.redo);
   const setActiveEdgeType = useGraphStore((s) => s.setActiveEdgeType);
@@ -76,6 +77,13 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
         return;
       }
 
+      // Add group: G
+      if (key === 'g' && !mod) {
+        e.preventDefault();
+        onOpenAddGroup();
+        return;
+      }
+
       // Built-in edge types: 1, 2, 3
       if (e.key === '1' && !mod) {
         e.preventDefault();
@@ -138,7 +146,7 @@ export function useKeyboardShortcuts({ onOpenAddNode, observerMode }: UseKeyboar
         return;
       }
     },
-    [undo, redo, onOpenAddNode, setActiveEdgeType, selectedNodeIds, selectNode, selectedEdgeId, selectEdge, nodes, onNodesChange, onEdgesChange, userEdgeTypes, observerMode, copySelection, pasteSelection]
+    [undo, redo, onOpenAddNode, onOpenAddGroup, setActiveEdgeType, selectedNodeIds, selectNode, selectedEdgeId, selectEdge, nodes, onNodesChange, onEdgesChange, userEdgeTypes, observerMode, copySelection, pasteSelection]
   );
 
   useEffect(() => {
