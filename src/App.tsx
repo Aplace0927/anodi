@@ -269,37 +269,6 @@ function AppInner() {
     [moveGroupMembers, recomputeGroupBounds, addNodeToGroup, removeNodeFromGroup, longPressGroupId, longPressDragNodeId, longPressAction]
   );
 
-  // Handle long-press on a node inside a group to remove it
-  const handleNodeMouseDown = useCallback(
-    (nodeId: string) => {
-      const currentNodes = useGraphStore.getState().nodes;
-      const groupNode = currentNodes.find(
-        (n) => n.type === 'group' && (n.data as GroupData).memberNodeIds.includes(nodeId)
-      );
-      if (!groupNode) return;
-
-      longPressTimer.current = setTimeout(() => {
-        setLongPressGroupId(groupNode.id);
-        setLongPressAction('-');
-        setLongPressDragNodeId(nodeId);
-      }, groupHoverDelay);
-    },
-    [groupHoverDelay]
-  );
-
-  const handleNodeMouseUp = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-    if (longPressGroupId && longPressDragNodeId && longPressAction === '-') {
-      removeNodeFromGroup(longPressGroupId, longPressDragNodeId);
-    }
-    setLongPressGroupId(null);
-    setLongPressAction(null);
-    setLongPressDragNodeId(null);
-  }, [longPressGroupId, longPressDragNodeId, longPressAction, removeNodeFromGroup]);
-
   // Clean up timer on unmount
   useEffect(() => {
     return () => {

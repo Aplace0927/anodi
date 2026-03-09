@@ -63,6 +63,7 @@ export default function DetailPanel() {
   }, [selectedNodeId, memData?.baseAddress, memData?.endAddress]);
 
   if (!node) return null;
+  if (node.type === 'group') return null;
 
   const data = node.data as NodeData & { name?: string };
 
