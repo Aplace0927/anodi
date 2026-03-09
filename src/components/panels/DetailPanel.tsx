@@ -66,6 +66,7 @@ export default function DetailPanel() {
   if (node.type === 'group') return null;
 
   const data = node.data as NodeData & { name?: string };
+  const nodeColor = typeof data.nodeColor === 'string' ? data.nodeColor : undefined;
 
   // ── Source code panel ──────────────────────────────────────────
   const renderSourcePanel = () => {
@@ -446,7 +447,7 @@ export default function DetailPanel() {
       <div className="border-b border-gray-300 px-4 py-3 dark:border-gray-700">
         <ColorPicker
           label="Node Color"
-          value={data.nodeColor}
+          value={nodeColor}
           onChange={(color) => updateNodeData(node.id, { nodeColor: color })}
         />
       </div>

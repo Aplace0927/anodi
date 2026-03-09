@@ -27,7 +27,7 @@ import SearchPanel from './components/panels/SearchPanel';
 import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import type { AnodiNode, AnodiEdge, GroupData, NodeData } from './types';
+import type { AnodiNode, AnodiEdge, GroupData } from './types';
 import { getEdgeStyle } from './types';
 
 const nodeTypes = {
