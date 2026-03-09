@@ -60,8 +60,7 @@ function GroupNodeComponent({ data }: NodeProps) {
               gap: 4,
             }}
           >
-            {action === '+' ? '＋' : '−'}
-            {action === '+' ? ' Adding Node' : ' Removing Node'}
+            {action === '+' ? '＋ Adding Node' : '− Removing Node'}
           </span>
         </div>
       )}
