@@ -125,7 +125,7 @@ const URL_REF_ATTRS = [
  *   "Cannot read properties of undefined (reading 'apply')"
  * because its internal ID map has no entry for the referenced element.
  */
-function removeDanglingReferences(svg: SVGSVGElement): void {
+function removeDanglingReferences(svg: Element): void {
   const allElements = svg.querySelectorAll('*');
 
   // Collect every defined id in the document
