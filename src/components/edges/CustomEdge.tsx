@@ -25,8 +25,12 @@ function snapAngle(anchor: { x: number; y: number }, point: { x: number; y: numb
   };
 }
 
-/** Find the nearest neighbor point (previous or next) in the polyline for angle-snap anchoring. */
-function nearestNeighbor(
+/**
+ * Compute 15-degree angle snaps from both adjacent points (previous and next)
+ * and return whichever snapped position is closest to the raw cursor.
+ * This yields 2 × (360/15) = 48 possible snap positions.
+ */
+function bestSnap(
   idx: number,
   bendPoints: { x: number; y: number }[],
   source: { x: number; y: number },
@@ -35,9 +39,11 @@ function nearestNeighbor(
 ): { x: number; y: number } {
   const prev = idx === 0 ? source : bendPoints[idx - 1];
   const next = idx === bendPoints.length - 1 ? target : bendPoints[idx + 1];
-  const distPrev = (cursor.x - prev.x) ** 2 + (cursor.y - prev.y) ** 2;
-  const distNext = (cursor.x - next.x) ** 2 + (cursor.y - next.y) ** 2;
-  return distPrev <= distNext ? prev : next;
+  const snappedPrev = snapAngle(prev, cursor);
+  const snappedNext = snapAngle(next, cursor);
+  const distPrev = (cursor.x - snappedPrev.x) ** 2 + (cursor.y - snappedPrev.y) ** 2;
+  const distNext = (cursor.x - snappedNext.x) ** 2 + (cursor.y - snappedNext.y) ** 2;
+  return distPrev <= distNext ? snappedPrev : snappedNext;
 }
 
 /** Find the point at the midpoint of a polyline defined by the given points. */
@@ -173,8 +179,7 @@ const CustomEdge = memo(
         const onMove = (moveEvt: PointerEvent) => {
           moveEvt.preventDefault();
           const raw = reactFlow.screenToFlowPosition({ x: moveEvt.clientX, y: moveEvt.clientY });
-          const anchor = nearestNeighbor(idx, startPoints, source, target, raw);
-          const pos = snapAngle(anchor, raw);
+          const pos = bestSnap(idx, startPoints, source, target, raw);
           setDragPoints(startPoints.map((p, i) => (i === idx ? pos : p)));
         };
 
@@ -187,8 +192,7 @@ const CustomEdge = memo(
         const onUp = (upEvt: PointerEvent) => {
           cleanup();
           const raw = reactFlow.screenToFlowPosition({ x: upEvt.clientX, y: upEvt.clientY });
-          const anchor = nearestNeighbor(idx, startPoints, source, target, raw);
-          const pos = snapAngle(anchor, raw);
+          const pos = bestSnap(idx, startPoints, source, target, raw);
           updateBendPoint(id, idx, pos);
           setDragPoints(null);
         };
