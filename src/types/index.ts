@@ -127,6 +127,7 @@ export type EdgeRelationship = BuiltinEdgeRelationship | (string & {});
 
 export interface AnodiEdgeData extends Record<string, unknown> {
   relationship: EdgeRelationship;
+  bendPoints?: { x: number; y: number }[];
 }
 
 // ── React Flow node/edge aliases ─────────────────────────────────

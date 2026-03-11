@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { X, ArrowRightLeft } from 'lucide-react';
+import { X, ArrowRightLeft, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import type { NodeData, EdgeRelationship } from '../../types';
 import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, getEdgeStyle } from '../../types';
@@ -59,6 +59,7 @@ export default function EdgeDetailPanel() {
   const selectEdge = useGraphStore((s) => s.selectEdge);
   const swapEdgeDirection = useGraphStore((s) => s.swapEdgeDirection);
   const updateEdgeRelationship = useGraphStore((s) => s.updateEdgeRelationship);
+  const clearBendPoints = useGraphStore((s) => s.clearBendPoints);
   const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
 
   const edge = edges.find((e) => e.id === selectedEdgeId);
@@ -140,6 +141,27 @@ export default function EdgeDetailPanel() {
           <ArrowRightLeft size={14} />
           Swap Direction
         </button>
+      </div>
+
+      {/* Bend points section */}
+      <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
+        <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          Control Points
+        </label>
+        <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+          Double-click edge to add points. Double-click a point to remove. Drag to reposition.
+        </p>
+        {(edge.data?.bendPoints?.length ?? 0) > 0 ? (
+          <button
+            onClick={() => clearBendPoints(edge.id)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            <Trash2 size={14} />
+            Clear {edge.data!.bendPoints!.length} Control Point{edge.data!.bendPoints!.length > 1 ? 's' : ''}
+          </button>
+        ) : (
+          <p className="text-xs italic text-gray-400 dark:text-gray-500">No control points</p>
+        )}
       </div>
 
       {/* Relationship type selector */}
