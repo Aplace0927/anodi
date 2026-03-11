@@ -340,7 +340,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           target: e.source,
           sourceHandle: e.targetHandle ?? null,
           targetHandle: e.sourceHandle ?? null,
-          data: bendPoints?.length
+          data: bendPoints && bendPoints.length > 0
             ? { ...e.data, bendPoints: [...bendPoints].reverse() } as AnodiEdgeData
             : e.data,
         };

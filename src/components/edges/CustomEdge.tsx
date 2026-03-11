@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   EdgeLabelRenderer,
   useReactFlow,
@@ -63,6 +63,14 @@ const CustomEdge = memo(
     const [dragPoints, setDragPoints] = useState<{ x: number; y: number }[] | null>(null);
     const effectivePoints = dragPoints ?? bendPoints;
 
+    // Cleanup ref for global pointer listeners to prevent memory leaks
+    const cleanupRef = useRef<(() => void) | null>(null);
+    useEffect(() => {
+      return () => {
+        cleanupRef.current?.();
+      };
+    }, []);
+
     // All points including source and target
     const allPoints = [
       { x: sourceX, y: sourceY },
@@ -103,7 +111,8 @@ const CustomEdge = memo(
           const dx = p2.x - p1.x;
           const dy = p2.y - p1.y;
           const lenSq = dx * dx + dy * dy;
-          const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((flowPos.x - p1.x) * dx + (flowPos.y - p1.y) * dy) / lenSq));
+          const dot = (flowPos.x - p1.x) * dx + (flowPos.y - p1.y) * dy;
+          const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, dot / lenSq));
           const projX = p1.x + t * dx;
           const projY = p1.y + t * dy;
           const dist = Math.sqrt((flowPos.x - projX) ** 2 + (flowPos.y - projY) ** 2);
@@ -131,9 +140,14 @@ const CustomEdge = memo(
           setDragPoints(startPoints.map((p, i) => (i === idx ? pos : p)));
         };
 
-        const onUp = (upEvt: PointerEvent) => {
+        const cleanup = () => {
           window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
+          cleanupRef.current = null;
+        };
+
+        const onUp = (upEvt: PointerEvent) => {
+          cleanup();
           const pos = reactFlow.screenToFlowPosition({ x: upEvt.clientX, y: upEvt.clientY });
           updateBendPoint(id, idx, pos);
           setDragPoints(null);
@@ -141,6 +155,7 @@ const CustomEdge = memo(
 
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
+        cleanupRef.current = cleanup;
       },
       [id, bendPoints, reactFlow, updateBendPoint]
     );
