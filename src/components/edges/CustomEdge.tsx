@@ -10,18 +10,12 @@ import { useGraphStore } from '../../store/graphStore';
 
 type Props = EdgeProps & { data?: AnodiEdgeData };
 
-/** Snap a point's angle (relative to an anchor) to the nearest 15-degree increment. */
-function snapAngle(anchor: { x: number; y: number }, point: { x: number; y: number }): { x: number; y: number } {
-  const dx = point.x - anchor.x;
-  const dy = point.y - anchor.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  if (distance === 0) return point;
-  const angle = Math.atan2(dy, dx);
-  const step = Math.PI / 12; // 15 degrees
-  const snapped = Math.round(angle / step) * step;
+/** Snap a point's coordinates to the nearest 10-unit grid. */
+function snapToGrid(point: { x: number; y: number }): { x: number; y: number } {
+  const GRID = 10;
   return {
-    x: anchor.x + distance * Math.cos(snapped),
-    y: anchor.y + distance * Math.sin(snapped),
+    x: Math.round(point.x / GRID) * GRID,
+    y: Math.round(point.y / GRID) * GRID,
   };
 }
 
@@ -152,16 +146,10 @@ const CustomEdge = memo(
         const startPoints = [...bendPoints];
         setDragPoints(startPoints);
 
-        // Determine the anchor point for 15-degree angle snapping:
-        // the previous point in the polyline (source position or preceding bend point).
-        const anchor = idx === 0
-          ? { x: sourceX, y: sourceY }
-          : startPoints[idx - 1];
-
         const onMove = (moveEvt: PointerEvent) => {
           moveEvt.preventDefault();
           const raw = reactFlow.screenToFlowPosition({ x: moveEvt.clientX, y: moveEvt.clientY });
-          const pos = snapAngle(anchor, raw);
+          const pos = snapToGrid(raw);
           setDragPoints(startPoints.map((p, i) => (i === idx ? pos : p)));
         };
 
@@ -174,7 +162,7 @@ const CustomEdge = memo(
         const onUp = (upEvt: PointerEvent) => {
           cleanup();
           const raw = reactFlow.screenToFlowPosition({ x: upEvt.clientX, y: upEvt.clientY });
-          const pos = snapAngle(anchor, raw);
+          const pos = snapToGrid(raw);
           updateBendPoint(id, idx, pos);
           setDragPoints(null);
         };
@@ -183,7 +171,7 @@ const CustomEdge = memo(
         window.addEventListener('pointerup', onUp);
         cleanupRef.current = cleanup;
       },
-      [id, bendPoints, sourceX, sourceY, reactFlow, updateBendPoint, observerMode]
+      [id, bendPoints, reactFlow, updateBendPoint, observerMode]
     );
 
     // Double-click on a control point → remove it
