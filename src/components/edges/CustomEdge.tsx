@@ -27,8 +27,7 @@ function snapAngle(anchor: { x: number; y: number }, point: { x: number; y: numb
 
 /**
  * Compute 15-degree angle snaps from both adjacent points (previous and next)
- * and return whichever snapped position is closest to the raw cursor.
- * This yields 2 × (360/15) = 48 possible snap positions.
+ * and return whichever snapped position is closer to the raw cursor.
  */
 function bestSnap(
   idx: number,
