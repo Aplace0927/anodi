@@ -10,6 +10,21 @@ import { useGraphStore } from '../../store/graphStore';
 
 type Props = EdgeProps & { data?: AnodiEdgeData };
 
+/** Snap a point's angle (relative to an anchor) to the nearest 15-degree increment. */
+function snapAngle(anchor: { x: number; y: number }, point: { x: number; y: number }): { x: number; y: number } {
+  const dx = point.x - anchor.x;
+  const dy = point.y - anchor.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (distance === 0) return point;
+  const angle = Math.atan2(dy, dx);
+  const step = Math.PI / 12; // 15 degrees
+  const snapped = Math.round(angle / step) * step;
+  return {
+    x: anchor.x + distance * Math.cos(snapped),
+    y: anchor.y + distance * Math.sin(snapped),
+  };
+}
+
 /** Find the point at the midpoint of a polyline defined by the given points. */
 function polylineMidpoint(points: { x: number; y: number }[]): { x: number; y: number } {
   if (points.length < 2) return points[0] ?? { x: 0, y: 0 };
@@ -51,6 +66,7 @@ const CustomEdge = memo(
   }: Props) => {
     const rel = data?.relationship ?? 'call';
     const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
+    const observerMode = useGraphStore((s) => s.observerMode);
     const addBendPoint = useGraphStore((s) => s.addBendPoint);
     const removeBendPoint = useGraphStore((s) => s.removeBendPoint);
     const updateBendPoint = useGraphStore((s) => s.updateBendPoint);
@@ -93,6 +109,7 @@ const CustomEdge = memo(
     // Double-click on edge path → add a new bend point
     const handleEdgeDoubleClick = useCallback(
       (e: React.MouseEvent<SVGPathElement>) => {
+        if (observerMode) return;
         e.stopPropagation();
         e.preventDefault();
         const flowPos = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
@@ -123,20 +140,28 @@ const CustomEdge = memo(
         }
         addBendPoint(id, insertIdx, flowPos);
       },
-      [id, sourceX, sourceY, targetX, targetY, bendPoints, addBendPoint, reactFlow]
+      [id, sourceX, sourceY, targetX, targetY, bendPoints, addBendPoint, reactFlow, observerMode]
     );
 
     // Drag a control point using global listeners for reliability
     const handlePointPointerDown = useCallback(
       (e: React.PointerEvent, idx: number) => {
+        if (observerMode) return;
         e.stopPropagation();
         e.preventDefault();
         const startPoints = [...bendPoints];
         setDragPoints(startPoints);
 
+        // Determine the anchor point for 15-degree angle snapping:
+        // the previous point in the polyline (source position or preceding bend point).
+        const anchor = idx === 0
+          ? { x: sourceX, y: sourceY }
+          : startPoints[idx - 1];
+
         const onMove = (moveEvt: PointerEvent) => {
           moveEvt.preventDefault();
-          const pos = reactFlow.screenToFlowPosition({ x: moveEvt.clientX, y: moveEvt.clientY });
+          const raw = reactFlow.screenToFlowPosition({ x: moveEvt.clientX, y: moveEvt.clientY });
+          const pos = snapAngle(anchor, raw);
           setDragPoints(startPoints.map((p, i) => (i === idx ? pos : p)));
         };
 
@@ -148,7 +173,8 @@ const CustomEdge = memo(
 
         const onUp = (upEvt: PointerEvent) => {
           cleanup();
-          const pos = reactFlow.screenToFlowPosition({ x: upEvt.clientX, y: upEvt.clientY });
+          const raw = reactFlow.screenToFlowPosition({ x: upEvt.clientX, y: upEvt.clientY });
+          const pos = snapAngle(anchor, raw);
           updateBendPoint(id, idx, pos);
           setDragPoints(null);
         };
@@ -157,17 +183,18 @@ const CustomEdge = memo(
         window.addEventListener('pointerup', onUp);
         cleanupRef.current = cleanup;
       },
-      [id, bendPoints, reactFlow, updateBendPoint]
+      [id, bendPoints, sourceX, sourceY, reactFlow, updateBendPoint, observerMode]
     );
 
     // Double-click on a control point → remove it
     const handlePointDoubleClick = useCallback(
       (e: React.MouseEvent, idx: number) => {
+        if (observerMode) return;
         e.stopPropagation();
         e.preventDefault();
         removeBendPoint(id, idx);
       },
-      [id, removeBendPoint]
+      [id, removeBendPoint, observerMode]
     );
 
     return (

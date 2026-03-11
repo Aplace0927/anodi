@@ -91,6 +91,10 @@ interface GraphState {
   // Import / export
   loadGraph: (nodes: AnodiNode[], edges: AnodiEdge[], userEdgeTypes?: UserEdgeType[]) => void;
 
+  // Observer mode (locked board)
+  observerMode: boolean;
+  setObserverMode: (mode: boolean) => void;
+
   // Undo / Redo
   undo: () => void;
   redo: () => void;
@@ -184,6 +188,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   past: [],
   future: [],
   groupHoverDelay: 600,
+  observerMode: false,
 
   addNode: (name, data, position) => {
     const id = `node-${nodeCounter++}`;
@@ -534,6 +539,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   setGroupHoverDelay: (ms) => set({ groupHoverDelay: ms }),
+
+  setObserverMode: (mode) => set({ observerMode: mode }),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
 

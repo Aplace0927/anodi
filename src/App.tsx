@@ -46,7 +46,8 @@ function AppInner() {
   const { theme, toggleTheme } = useTheme();
   const [showAddNode, setShowAddNode] = useState(false);
   const [showAddGroup, setShowAddGroup] = useState(false);
-  const [observerMode, setObserverMode] = useState(false);
+  const observerMode = useGraphStore((s) => s.observerMode);
+  const setObserverMode = useGraphStore((s) => s.setObserverMode);
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
