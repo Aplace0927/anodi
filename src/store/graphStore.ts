@@ -55,6 +55,12 @@ interface GraphState {
   swapEdgeDirection: (edgeId: string) => void;
   updateEdgeRelationship: (edgeId: string, relationship: EdgeRelationship) => void;
 
+  // Bend point actions
+  addBendPoint: (edgeId: string, index: number, point: { x: number; y: number }) => void;
+  removeBendPoint: (edgeId: string, index: number) => void;
+  updateBendPoint: (edgeId: string, index: number, point: { x: number; y: number }) => void;
+  clearBendPoints: (edgeId: string) => void;
+
   // User edge types
   addUserEdgeType: (label: string, color: string, strokeDasharray?: string) => void;
   updateUserEdgeType: (id: string, label: string, color: string, strokeDasharray?: string) => void;
@@ -84,6 +90,10 @@ interface GraphState {
 
   // Import / export
   loadGraph: (nodes: AnodiNode[], edges: AnodiEdge[], userEdgeTypes?: UserEdgeType[]) => void;
+
+  // Observer mode (locked board)
+  observerMode: boolean;
+  setObserverMode: (mode: boolean) => void;
 
   // Undo / Redo
   undo: () => void;
@@ -178,6 +188,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   past: [],
   future: [],
   groupHoverDelay: 600,
+  observerMode: false,
 
   addNode: (name, data, position) => {
     const id = `node-${nodeCounter++}`;
@@ -327,14 +338,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       future: [],
       edges: s.edges.map((e) => {
         if (e.id !== edgeId) return e;
-        // Only swap source/target; keep same handle IDs so the visual path stays the same.
-        // Each handle position exposes both source and target types, so the handles resolve correctly.
+        const bendPoints = e.data?.bendPoints;
         return {
           ...e,
           source: e.target,
           target: e.source,
           sourceHandle: e.targetHandle ?? null,
           targetHandle: e.sourceHandle ?? null,
+          data: bendPoints && bendPoints.length > 0
+            ? { ...e.data, bendPoints: [...bendPoints].reverse() } as AnodiEdgeData
+            : e.data,
         };
       }),
     }));
@@ -347,6 +360,57 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       edges: s.edges.map((e) =>
         e.id === edgeId
           ? { ...e, data: { ...e.data, relationship } as AnodiEdgeData }
+          : e
+      ),
+    }));
+  },
+
+  addBendPoint: (edgeId, index, point) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) => {
+        if (e.id !== edgeId) return e;
+        const bendPoints = [...(e.data?.bendPoints ?? [])];
+        bendPoints.splice(index, 0, point);
+        return { ...e, data: { ...e.data, bendPoints } as AnodiEdgeData };
+      }),
+    }));
+  },
+
+  removeBendPoint: (edgeId, index) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) => {
+        if (e.id !== edgeId) return e;
+        const bendPoints = [...(e.data?.bendPoints ?? [])];
+        bendPoints.splice(index, 1);
+        return { ...e, data: { ...e.data, bendPoints } as AnodiEdgeData };
+      }),
+    }));
+  },
+
+  updateBendPoint: (edgeId, index, point) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) => {
+        if (e.id !== edgeId) return e;
+        const bendPoints = [...(e.data?.bendPoints ?? [])];
+        bendPoints[index] = point;
+        return { ...e, data: { ...e.data, bendPoints } as AnodiEdgeData };
+      }),
+    }));
+  },
+
+  clearBendPoints: (edgeId) => {
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: s.edges.map((e) =>
+        e.id === edgeId
+          ? { ...e, data: { ...e.data, bendPoints: [] } as AnodiEdgeData }
           : e
       ),
     }));
@@ -475,6 +539,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   setGroupHoverDelay: (ms) => set({ groupHoverDelay: ms }),
+
+  setObserverMode: (mode) => set({ observerMode: mode }),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
 
