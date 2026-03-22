@@ -88,12 +88,12 @@ export default function EdgeDetailPanel() {
       <div className="flex items-center justify-between border-b border-gray-300 px-4 py-3 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <span
-            className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white"
+            className="rounded px-1.5 py-0.5 text-xs font-bold text-white"
             style={{ backgroundColor: style.color }}
           >
             {style.label}
           </span>
-          <span className="text-sm font-semibold">Edge</span>
+          <span className="text-sm font-bold">Edge</span>
         </div>
         <button onClick={closePanel} className="text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-white">
           <X size={16} />
@@ -104,11 +104,11 @@ export default function EdgeDetailPanel() {
       <div className="space-y-4 px-4 py-4">
         {/* Connected From */}
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Connected From
           </label>
           <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{from.nodeLabel}</p>
+            <p className="text-sm font-normal text-gray-800 dark:text-gray-100">{from.nodeLabel}</p>
             {from.detail && (
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{from.detail}</p>
             )}
@@ -122,11 +122,11 @@ export default function EdgeDetailPanel() {
 
         {/* Connected To */}
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Connected To
           </label>
           <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{to.nodeLabel}</p>
+            <p className="text-sm font-normal text-gray-800 dark:text-gray-100">{to.nodeLabel}</p>
             {to.detail && (
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{to.detail}</p>
             )}
@@ -136,7 +136,7 @@ export default function EdgeDetailPanel() {
         {/* Swap button */}
         <button
           onClick={handleSwap}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
           <ArrowRightLeft size={14} />
           Swap Direction
@@ -145,7 +145,7 @@ export default function EdgeDetailPanel() {
 
       {/* Bend points section */}
       <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
-        <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+        <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
           Control Points
         </label>
         <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
@@ -154,7 +154,7 @@ export default function EdgeDetailPanel() {
         {(edge.data?.bendPoints?.length ?? 0) > 0 ? (
           <button
             onClick={() => clearBendPoints(edge.id)}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
             <Trash2 size={14} />
             Clear {edge.data!.bendPoints!.length} Control Point{edge.data!.bendPoints!.length > 1 ? 's' : ''}
@@ -166,7 +166,7 @@ export default function EdgeDetailPanel() {
 
       {/* Relationship type selector */}
       <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
-        <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+        <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
           Relationship
         </label>
         <select

@@ -406,7 +406,7 @@ function CellForm({
               setType(t);
               setSizeError(false);
             }}
-            className={`flex-1 rounded border py-0.5 text-[10px] font-semibold uppercase transition-all ${
+            className={`flex-1 rounded border py-0.5 text-xs font-bold uppercase transition-all ${
               type === t
                 ? "border-orange-500 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
                 : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400"
@@ -420,30 +420,30 @@ function CellForm({
 
       {/* Address */}
       <div className="mb-1 flex items-center gap-1">
-        <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">Address</span>
+        <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">Address</span>
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder={`0x${"0".repeat(padLen)}`}
-          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-700 dark:text-green-300 focus:outline-none"
+          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-green-700 dark:text-green-300 focus:outline-none"
         />
       </div>
 
       {type === "field" ? (
         <>
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Name
             </span>
             <input
               value={fieldName}
               onChange={(e) => setFieldName(e.target.value)}
               placeholder="int variable"
-              className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-[10px] text-gray-900 dark:text-white focus:outline-none"
+              className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-white focus:outline-none"
             />
           </div>
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-[10px]">
+            <span className="w-16 shrink-0 text-xs">
               <span className="text-gray-500 dark:text-gray-400">Size (B)</span>
               <span className="ml-0.5 text-red-400">*</span>
             </span>
@@ -456,7 +456,7 @@ function CellForm({
                 const v = parseInt(e.target.value, 10);
                 setFieldSize(isNaN(v) ? "" : v);
               }}
-              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-[10px] text-gray-900 dark:text-white focus:outline-none ${
+              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-white focus:outline-none ${
                 sizeError
                   ? "border-red-500 ring-1 ring-red-500"
                   : "border-gray-300 dark:border-gray-600"
@@ -464,12 +464,12 @@ function CellForm({
             />
           </div>
           {sizeError && (
-            <p className="mb-1 text-[10px] text-red-400">
+            <p className="mb-1 text-xs text-red-400">
               Size must be ≥ 1 byte.
             </p>
           )}
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Color
             </span>
             <ColorPicker
@@ -481,7 +481,7 @@ function CellForm({
       ) : type === "integer" ? (
         <>
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Size
             </span>
             <div className="flex flex-1 gap-1">
@@ -489,7 +489,7 @@ function CellForm({
                 <button
                   key={s}
                   onClick={() => setIntegerSize(s)}
-                  className={`flex-1 rounded border py-0.5 text-[10px] font-semibold transition-all ${
+                  className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
                     integerSize === s
                       ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
                       : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
@@ -501,7 +501,7 @@ function CellForm({
             </div>
           </div>
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Endian
             </span>
             <div className="flex flex-1 gap-1">
@@ -509,7 +509,7 @@ function CellForm({
                 <button
                   key={e}
                   onClick={() => setEndianness(e)}
-                  className={`flex-1 rounded border py-0.5 text-[10px] font-semibold transition-all ${
+                  className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
                     endianness === e
                       ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
                       : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
@@ -521,7 +521,7 @@ function CellForm({
             </div>
           </div>
           <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Value
             </span>
             <input
@@ -534,7 +534,7 @@ function CellForm({
                 setValue(sanitized);
               }}
               placeholder="255, 0xFF, 0b11111111, 0o377"
-              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-green-700 dark:text-green-300 focus:outline-none ${
+              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-green-700 dark:text-green-300 focus:outline-none ${
                 intValueError
                   ? "border-red-500 ring-1 ring-red-500"
                   : "border-gray-300 dark:border-gray-600"
@@ -542,14 +542,14 @@ function CellForm({
             />
           </div>
           {intValueError && (
-            <p className="mb-1 text-[10px] text-red-400">
+            <p className="mb-1 text-xs text-red-400">
               Invalid integer value.
             </p>
           )}
         </>
       ) : (
         <div className="mb-1 flex items-center gap-1">
-          <span className="w-16 shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+          <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
             {type === "hex" ? "Hex bytes" : "Text"}
           </span>
           <input
@@ -563,19 +563,19 @@ function CellForm({
               }
             }}
             placeholder={type === "hex" ? "41 42 43 00" : "Hello, world"}
-            className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-[10px] text-gray-700 dark:text-gray-200 focus:outline-none"
+            className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-700 dark:text-gray-200 focus:outline-none"
           />
         </div>
       )}
 
       {computedSize > 0 && (
-        <p className="mb-1 text-right text-[10px] text-gray-500">
+        <p className="mb-1 text-right text-xs text-gray-500">
           {computedSize} byte{computedSize !== 1 ? "s" : ""} consumed
         </p>
       )}
 
       {overlapError && (
-        <p className="mb-1 text-red-400 text-[10px]">
+        <p className="mb-1 text-red-400 text-xs">
           Memory overlaps with existing content.
         </p>
       )}
@@ -583,13 +583,13 @@ function CellForm({
       <div className="flex justify-end gap-1">
         <button
           onClick={onCancel}
-          className="rounded border border-gray-300 dark:border-gray-600 px-2 py-0.5 text-[10px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          className="rounded border border-gray-300 dark:border-gray-600 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
         >
           Cancel
         </button>
         <button
           onClick={handleSave}
-          className="rounded bg-orange-700 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-orange-600"
+          className="rounded bg-orange-700 px-2 py-0.5 text-xs font-bold text-white hover:bg-orange-600"
         >
           {cellToEdit ? "Save" : "Add"}
         </button>
@@ -697,7 +697,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-[9px] text-gray-700"
+          className="inline-block w-[18px] text-center font-mono text-xs text-gray-700"
         >
           --
         </span>
@@ -708,7 +708,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-[9px] text-amber-300"
+          className="inline-block w-[18px] text-center font-mono text-xs text-amber-300"
           title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (hex)`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
@@ -720,7 +720,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-[9px] text-cyan-300"
+          className="inline-block w-[18px] text-center font-mono text-xs text-cyan-300"
           title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (text "${ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : "."}")`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
@@ -732,7 +732,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-[9px] text-green-700 dark:text-green-300"
+          className="inline-block w-[18px] text-center font-mono text-xs text-green-700 dark:text-green-300"
           title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (integer)`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
@@ -755,7 +755,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       return (
         <span
           key={byteAddr}
-          className={`inline-block w-[18px] h-[18px] text-center font-mono text-[9px] ${borderT} ${borderB} ${borderL} ${borderR}`}
+          className={`inline-block w-[18px] h-[18px] text-center font-mono text-xs ${borderT} ${borderB} ${borderL} ${borderR}`}
           style={{
             backgroundColor: `${customFieldColor}33`,
             color: customFieldColor,
@@ -771,7 +771,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     return (
       <span
         key={byteAddr}
-        className={`inline-block w-[18px] h-[18px] text-center font-mono text-[9px] ${col.bg} ${col.text} ${col.border} ${borderT} ${borderB} ${borderL} ${borderR}`}
+        className={`inline-block w-[18px] h-[18px] text-center font-mono text-xs ${col.bg} ${col.text} ${col.border} ${borderT} ${borderB} ${borderL} ${borderR}`}
         title={`${ann.fieldName ?? "field"} (+${byteAddr - fieldStart})`}
       >
         {ann.isFirst ? "▶" : ""}
@@ -844,7 +844,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                     return (
                       <span
                         key={addr}
-                        className="text-center font-mono text-[9px] text-gray-500 dark:text-gray-400"
+                        className="text-center font-mono text-xs text-gray-500 dark:text-gray-400"
                         style={{ width: `${(1 / seg.length) * 100}%` }}
                       >
                         {ch}
@@ -903,7 +903,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                   {s >= rowAddr &&
                     s < rowEndAddr && (
                       <span
-                        className="w-full truncate text-center text-[9px] font-semibold"
+                        className="w-full truncate text-center text-xs font-bold"
                         style={{ color: customFieldColor }}
                       >
                         {cell.fieldName}
@@ -930,7 +930,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                 {s >= rowAddr &&
                   s < rowEndAddr && ( // Only show name if the field starts in this row
                     <span
-                      className={`w-full truncate text-center text-[9px] font-semibold ${col.text}`}
+                      className={`w-full truncate text-center text-xs font-bold ${col.text}`}
                     >
                       {cell.fieldName}
                     </span>
@@ -973,7 +973,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
         {chars.map((ch, i) => (
           <span
             key={rowAddr + i}
-            className="text-center font-mono text-[9px] text-gray-500 dark:text-gray-400"
+            className="text-center font-mono text-xs text-gray-500 dark:text-gray-400"
             style={{ width: `${(1 / unitSize) * 100}%` }}
           >
             {ch}
@@ -1083,24 +1083,23 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       >
         <div className="flex-1 overflow-hidden">
           <div
-            className={`text-[10px] ${headerTextColor ? '' : 'text-orange-200'}`}
-            style={headerTextColor ? { color: headerTextColor } : undefined}
-          >
-            memory layout
-          </div>
-
-          <div
-            className={`truncate font-bold ${headerTextColor ? '' : 'text-orange-50'}`}
+            className={`truncate font-mono font-bold text-sm  ${headerTextColor ? '' : 'text-orange-50'}`}
             style={headerTextColor ? { color: headerTextColor } : undefined}
           >
             {data.name ?? "Untitled"}
+            
+          </div>
+          <div
+            className={`text-xs ${headerTextColor ? '' : 'text-orange-200'}`}
+            style={headerTextColor ? { color: headerTextColor } : undefined}
+          >
             <span
-              className={`truncate rounded px-2 py-0.5 text-[10px] ${headerTextColor ? '' : 'text-orange-300'}`}
+              className={`truncate rounded py-0.5 ${headerTextColor ? '' : 'text-orange-300'}`}
               style={headerTextColor ? { color: headerTextColor } : undefined}
             >
-              <span className="font-mono text-[12px]">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
+              <span className="font-mono">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
               {isAutoCollapsed ? " · auto-collapsed" : " "} · {" "}
-              {unitSize}B / row
+              {unitSize}B
             </span>
           </div>
         </div>
@@ -1137,7 +1136,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           <div className="anodi-export-data mx-1 mb-1 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
         {rowItems.length === 0 && (
           <div
-            className="px-2 text-[10px] italic text-gray-500"
+            className="px-2 text-xs italic text-gray-500"
             style={{ height: ROW_H }}
           >
             No valid range
@@ -1152,9 +1151,9 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                 className="flex items-center gap-2 border-y border-gray-200 dark:border-gray-700 bg-gray-200/40 dark:bg-gray-900/40 px-2"
                 style={{ height: ELLIPSIS_H }}
               >
-                <span className="font-mono text-[9px] text-gray-500">···</span>
+                <span className="font-mono text-xs text-gray-500">···</span>
 
-                <span className="font-mono text-[9px] italic text-gray-600">
+                <span className="font-mono text-xs italic text-gray-600">
                   ({fmtHex(item.fromAddr, padLen)} –{" "}
                   {fmtHex(item.toAddr, padLen)})
                 </span>
@@ -1171,13 +1170,13 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               {/* Address */}
 
               <span
-                className="shrink-0 pl-2 font-mono text-[9px] text-gray-700 dark:text-gray-300"
+                className="shrink-0 pl-2 font-mono text-xs text-gray-700 dark:text-gray-300"
                 style={{ width: addrW - 4 }}
               >
                 {item.label}
               </span>
 
-              <span className="mx-0.5 text-[9px] text-gray-700">│</span>
+              <span className="mx-0.5 text-xs text-gray-700">│</span>
 
               {/* Byte cells */}
 
@@ -1187,7 +1186,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                 )}
               </div>
 
-              <span className="mx-0.5 text-[9px] text-gray-700">│</span>
+              <span className="mx-0.5 text-xs text-gray-700">│</span>
 
               {/* Annotation */}
 
@@ -1241,7 +1240,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
         >
           {cells.length > 0 && (
             <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/60 px-2 py-1">
-              <span className="mb-1 block text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+              <span className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                 Content ({cells.length})
               </span>
 
@@ -1258,10 +1257,10 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                     />
                   ) : (
                     <div
-                      className="flex items-center gap-1 py-0.5 text-[10px] cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded px-1"
+                      className="flex items-center gap-1 py-0.5 text-xs cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded px-1"
                       onClick={() => setEditingCellId(c.id)}
                     >
-                      <span className="w-5 shrink-0 rounded bg-gray-200 dark:bg-gray-700 px-0.5 text-center font-mono text-[9px] text-gray-700 dark:text-gray-300">
+                      <span className="w-5 shrink-0 rounded bg-gray-200 dark:bg-gray-700 px-0.5 text-center font-mono text-xs text-gray-700 dark:text-gray-300">
                         {c.type === "hex" ? "H" : c.type === "text" ? "T" : c.type === "integer" ? "I" : "F"}
                       </span>
 
@@ -1308,7 +1307,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                 e.stopPropagation();
                 setShowAddForm(true);
               }}
-              className="flex items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-[10px] text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
+              className="flex items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
             >
               <Plus size={10} /> Add content
             </button>

@@ -46,7 +46,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
       <div className="w-96 rounded-xl bg-white shadow-2xl dark:bg-gray-900">
         {/* Title bar */}
         <div className="flex items-center justify-between rounded-t-xl bg-gray-800 px-4 py-3">
-          <span className="font-semibold text-white">Add Node</span>
+          <span className="font-bold text-white">Add Node</span>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <X size={18} />
           </button>
@@ -55,7 +55,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
         <div className="space-y-4 p-4">
           {/* Node type */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Node Type
             </label>
             <select
@@ -72,7 +72,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
 
           {/* Name */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Name
             </label>
             <input
@@ -90,7 +90,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
           {/* Language (source only) */}
           {nodeType === 'source' && (
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+              <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                 Language
               </label>
               <select
@@ -112,7 +112,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
             <>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                  <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                     Base Address
                   </label>
                   <input
@@ -123,7 +123,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                  <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                     End Address
                   </label>
                   <input
@@ -135,7 +135,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                   Unit Size (bytes)
                 </label>
                 <div className="flex gap-2">
@@ -143,7 +143,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
                     <button
                       key={u}
                       onClick={() => setUnitSize(u)}
-                      className={`flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all ${
+                      className={`flex-1 rounded-lg border-2 py-2 text-sm font-normal transition-all ${
                         unitSize === u
                           ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
@@ -167,7 +167,7 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
           </button>
           <button
             onClick={handleAdd}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
           >
             Add Node
           </button>

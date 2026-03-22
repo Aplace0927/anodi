@@ -29,7 +29,7 @@ export default function SearchPanel() {
   return (
     <div className="absolute left-1/2 top-14 z-30 w-96 -translate-x-1/2 rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800">
       <div className="flex items-center justify-between border-b px-3 py-2 dark:border-gray-700">
-        <span className="text-xs font-semibold text-gray-500 uppercase dark:text-gray-400">
+        <span className="text-xs font-bold text-gray-500 uppercase dark:text-gray-400">
           {matches.length} result{matches.length !== 1 ? 's' : ''} for "{query}"
         </span>
         <button
@@ -51,10 +51,10 @@ export default function SearchPanel() {
               >
                 <div className="flex items-center gap-2">
                   <Search size={12} className="shrink-0 text-indigo-400" />
-                  <span className="font-medium text-sm text-gray-800 truncate dark:text-gray-100">{m.nodeName}</span>
-                  <span className="ml-auto shrink-0 text-[10px] text-gray-400">{m.nodeKind}</span>
+                  <span className="font-normal text-sm text-gray-800 truncate dark:text-gray-100">{m.nodeName}</span>
+                  <span className="ml-auto shrink-0 text-xs text-gray-400">{m.nodeKind}</span>
                 </div>
-                <p className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">{m.context}</p>
+                <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{m.context}</p>
               </button>
             </li>
           ))}

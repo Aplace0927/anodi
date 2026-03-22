@@ -23,7 +23,7 @@ export default function AddGroupDialog({ onClose, getViewportCenter }: Props) {
       <div className="w-96 rounded-xl bg-white shadow-2xl dark:bg-gray-900">
         {/* Title bar */}
         <div className="flex items-center justify-between rounded-t-xl bg-gray-800 px-4 py-3">
-          <span className="font-semibold text-white">Add Group</span>
+          <span className="font-bold text-white">Add Group</span>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <X size={18} />
           </button>
@@ -32,7 +32,7 @@ export default function AddGroupDialog({ onClose, getViewportCenter }: Props) {
         <div className="space-y-4 p-4">
           {/* Name */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Group Name
             </label>
             <input
@@ -64,7 +64,7 @@ export default function AddGroupDialog({ onClose, getViewportCenter }: Props) {
           </button>
           <button
             onClick={handleAdd}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
           >
             Add Group
           </button>

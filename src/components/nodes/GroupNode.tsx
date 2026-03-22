@@ -47,17 +47,9 @@ function GroupNodeComponent({ data }: NodeProps) {
           }}
         >
           <span
+            className="flex items-center gap-1 whitespace-nowrap rounded bg-black/65 px-2.5 py-0.5 text-xs font-bold"
             style={{
-              fontSize: 12,
-              fontWeight: 600,
               color: glowColor,
-              backgroundColor: 'rgba(0,0,0,0.65)',
-              borderRadius: 6,
-              padding: '2px 10px',
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
             }}
           >
             {action === '+' ? '＋ Adding Node' : '− Removing Node'}
@@ -78,22 +70,17 @@ function GroupNodeComponent({ data }: NodeProps) {
         }}
       >
         <span
+          className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold"
           style={{
-            fontSize: 13,
-            fontWeight: 600,
             color: textColor,
             userSelect: 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
           }}
         >
           {gd.name || 'Group'}
         </span>
         <span
+          className="ml-2 text-xs"
           style={{
-            marginLeft: 8,
-            fontSize: 10,
             color: textColor === '#ffffff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)',
             userSelect: 'none',
           }}

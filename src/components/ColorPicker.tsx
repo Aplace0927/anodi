@@ -99,7 +99,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
     <div ref={ref} className="relative">
       <div className="flex items-center gap-2">
         {label && (
-          <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</span>
+          <span className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">{label}</span>
         )}
         <button
           onClick={() => setOpen((v) => !v)}
@@ -118,7 +118,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
         {value && (
           <button
             onClick={handleClear}
-            className="text-[10px] text-gray-500 hover:text-red-400"
+            className="text-xs text-gray-500 hover:text-red-400"
           >
             Clear
           </button>
@@ -128,7 +128,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-600 dark:bg-gray-800">
           {/* Predefined palette – transposed: columns = hues, rows = lightness */}
-          <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Palette</p>
+          <p className="mb-1.5 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Palette</p>
           <div className="mb-3 space-y-px">
             {Array.from({ length: SHADE_COUNT }, (_, shadeIdx) => (
               <div key={shadeIdx} className="flex gap-px">
@@ -152,7 +152,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
           {/* Recently used */}
           {recentColors.length > 0 && (
             <>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+              <p className="mb-1.5 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                 Recently used
               </p>
               <div className="mb-3 flex gap-1">
@@ -172,7 +172,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
           )}
 
           {/* Custom color input */}
-          <p className="mb-1.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Custom</p>
+          <p className="mb-1.5 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Custom</p>
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -190,7 +190,7 @@ export default function ColorPicker({ value, onChange, label }: ColorPickerProps
                 }
               }}
               placeholder="#6366f1"
-              className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1 font-mono text-[10px] text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="flex-1 rounded border border-gray-300 bg-gray-100 px-2 py-1 font-mono text-xs text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
             />
           </div>
         </div>

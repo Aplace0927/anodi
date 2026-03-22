@@ -117,7 +117,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
         {/* ── Left group ── */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Branding */}
-            <a href="https://beyond-the-line-a.place" className="mr-1 text-lg font-extrabold tracking-tight text-gray-900 dark:text-white hover:opacity-80 transition-opacity">
+            <a href="https://beyond-the-line-a.place" className="mr-1 text-lg font-bold tracking-tight text-gray-900 dark:text-white hover:opacity-80 transition-opacity">
             <img src={theme === 'dark' ? '/dark.svg' : '/light.svg'} alt="Anodi" className="inline-block h-5 w-5 mr-1 -mt-0.5" />
             </a>
 
@@ -126,7 +126,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
             <div className="relative">
               <button
                 onClick={() => setShowAddDropdown((v) => !v)}
-                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2 sm:px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 active:scale-95 transition-all"
+                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2 sm:px-3 py-1.5 text-sm font-bold text-white shadow hover:bg-indigo-700 active:scale-95 transition-all"
                 title="Add Node (N) / Group (G)"
               >
                 <Plus size={15} />
@@ -142,7 +142,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                   >
                     <Plus size={14} />
                     Add Node
-                    <span className="ml-auto text-[10px] text-gray-400">N</span>
+                    <span className="ml-auto text-xs text-gray-400">N</span>
                   </button>
                   <button
                     onClick={() => { setShowAddDropdown(false); setShowAddGroup(true); }}
@@ -150,7 +150,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                   >
                     <Plus size={14} />
                     Add Group
-                    <span className="ml-auto text-[10px] text-gray-400">G</span>
+                    <span className="ml-auto text-xs text-gray-400">G</span>
                   </button>
                 </div>
               )}
@@ -162,7 +162,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
             <div className="relative">
               <button
                 onClick={() => setShowEdgeDropdown((v) => !v)}
-                className="flex items-center gap-1 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 text-sm font-medium text-white shadow transition-all active:scale-95"
+                className="flex items-center gap-1 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 text-sm font-normal text-white shadow transition-all active:scale-95"
                 style={{ backgroundColor: activeStyle.color }}
               >
                 <span
@@ -194,7 +194,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                           style={{ backgroundColor: s.color }}
                         />
                         {s.label}
-                        <span className="ml-auto text-[10px] text-gray-400">{BUILTIN_EDGE_SHORTCUT[rel]}</span>
+                        <span className="ml-auto text-xs text-gray-400">{BUILTIN_EDGE_SHORTCUT[rel]}</span>
                       </button>
                     );
                   })}
@@ -222,7 +222,7 @@ export default function Toolbar({ theme, toggleTheme, showAddNode, setShowAddNod
                               style={{ backgroundColor: ut.color }}
                             />
                             <span className="truncate">{ut.label}</span>
-                            <span className="ml-auto shrink-0 text-[10px] text-gray-400">{ut.shortcutKey}</span>
+                            <span className="ml-auto shrink-0 text-xs text-gray-400">{ut.shortcutKey}</span>
                           </button>
                           <button
                             onClick={(e) => {

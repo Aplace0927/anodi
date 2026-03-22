@@ -198,12 +198,12 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
         <span
-          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white ${langColor}`}
+          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-bold font-mono uppercase text-white ${langColor}`}
         >
           {data.language}
         </span>
         <span
-          className={`flex-1 truncate text-sm font-semibold ${headerTextColor ? '' : 'text-gray-800 dark:text-gray-100'}`}
+          className={`flex-1 truncate text-sm font-bold font-mono ${headerTextColor ? '' : 'text-gray-800 dark:text-gray-100'}`}
           style={headerTextColor ? { color: headerTextColor } : undefined}
         >
           {data.name ?? 'Untitled'}
@@ -236,7 +236,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         >
           {/* Language selector */}
           <div className="flex items-center gap-2 px-1">
-            <label className="shrink-0 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="shrink-0 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Language
             </label>
             <select
@@ -267,7 +267,8 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
               onChange={(val) => updateNodeData(id, { code: val ?? '' })}
               options={{
                 minimap: { enabled: false },
-                fontSize: 11,
+                // Monaco requires numeric font size values.
+                fontSize: 12,
                 lineNumbers: 'on',
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
@@ -279,16 +280,16 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           {/* Collapsed line map — one input per "..." marker */}
           {ellipsisIndices.length > 0 && (
             <div className="px-1">
-              <label className="mb-1 block text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+              <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                 Collapsed section start lines
               </label>
-              <p className="mb-1 text-[10px] text-gray-500 dark:text-gray-500">
+              <p className="mb-1 text-xs text-gray-500 dark:text-gray-500">
                 For each <code className="text-gray-700 dark:text-gray-300">...</code> line, set the line number
                 where the next section begins.
               </p>
               {ellipsisIndices.map((_, ordinal) => (
                 <div key={ordinal} className="mb-1 flex items-center gap-2">
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     After collapse {ordinal + 1}:
                   </span>
                   <input
@@ -309,7 +310,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         <div className="anodi-export-data mx-1 mb-2 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
           {items.length === 0 && (
             <div
-              className="flex items-center px-2 text-[10px] italic text-gray-500"
+              className="flex items-center px-2 text-xs italic text-gray-500"
               style={{ height: LINE_H }}
             >
               empty
@@ -323,10 +324,10 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                   className="flex items-center gap-2 px-2"
                   style={{ height: ELLIPSIS_H }}
                 >
-                  <span className="w-8 select-none text-right font-mono text-[9px] text-gray-600">
+                  <span className="w-8 select-none text-right font-mono text-xs text-gray-600">
                     ···
                   </span>
-                  <span className="font-mono text-[9px] text-gray-500">···</span>
+                  <span className="font-mono text-xs text-gray-500">···</span>
                 </div>
               );
             }
@@ -336,10 +337,10 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                 className="flex items-center gap-2 px-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/30"
                 style={{ height: LINE_H }}
               >
-                <span className="w-8 shrink-0 select-none text-right font-mono text-[9px] text-gray-500">
+                <span className="w-8 shrink-0 select-none text-right font-mono text-xs text-gray-500">
                   {item.num}
                 </span>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden text-xs">
                   <SyntaxHighlighter
                     language={SYNTAX_HIGHLIGHTER_LANG[data.language]}
                     style={theme === 'dark' ? dracula : oneLight}
@@ -349,13 +350,11 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                       backgroundColor: 'transparent',
                       margin: '0',
                       lineHeight: '1',
-                      fontSize: '10px',
                       background: 'transparent'
                     }}
                     codeTagProps={{
                       style: {
                         fontFamily: 'monospace',
-                        fontSize: '10px',
                         lineHeight: '1',
                         background: 'transparent'
                       },
