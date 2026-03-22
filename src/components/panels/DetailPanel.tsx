@@ -90,7 +90,7 @@ export default function DetailPanel() {
       <div className="flex flex-col gap-3">
         {/* Language selector */}
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Language</label>
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Language</label>
           <select
             value={data.language}
             onChange={(e) =>
@@ -105,16 +105,16 @@ export default function DetailPanel() {
             ))}
           </select>
         </div>
-        <p className="text-[11px] text-gray-500 dark:text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-500">
           Open the inline editor (✎ button on the node) to edit code with syntax highlighting.
         </p>
         {/* Collapsed line map — one input per "..." marker */}
         {ellipsisIndices.length > 0 && (
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Collapsed section start lines
             </label>
-            <p className="mb-2 text-[10px] text-gray-500 dark:text-gray-500">
+            <p className="mb-2 text-xs text-gray-500 dark:text-gray-500">
               For each <code className="text-gray-700 dark:text-gray-300">...</code> line in the code, specify the line
               number where the next section begins.
             </p>
@@ -167,7 +167,7 @@ export default function DetailPanel() {
       <div className="space-y-4">
         {/* Class name */}
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Class Name
           </label>
           <input
@@ -180,7 +180,7 @@ export default function DetailPanel() {
         {/* Fields */}
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Fields</span>
+            <span className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Fields</span>
             <button
               onClick={addField}
               className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
@@ -215,7 +215,7 @@ export default function DetailPanel() {
         {/* Methods */}
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Methods</span>
+            <span className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Methods</span>
             <button
               onClick={addMethod}
               className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
@@ -267,7 +267,7 @@ export default function DetailPanel() {
       <div className="space-y-4">
         {/* Address range (deferred apply) */}
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Address Range
           </label>
           <div className="space-y-2">
@@ -291,7 +291,7 @@ export default function DetailPanel() {
             </div>
           </div>
           {addrError && (
-            <p className="mt-1 text-[11px] text-red-500 dark:text-red-400">{addrError}</p>
+            <p className="mt-1 text-xs text-red-500 dark:text-red-400">{addrError}</p>
           )}
           <button
             onClick={() => {
@@ -324,7 +324,7 @@ export default function DetailPanel() {
                 onEdgesChange(staleEdgeIds);
               }
             }}
-            className="mt-2 w-full rounded bg-orange-700 px-2 py-1 text-xs font-semibold text-white hover:bg-orange-600"
+            className="mt-2 w-full rounded bg-orange-700 px-2 py-1 text-xs font-bold text-white hover:bg-orange-600"
           >
             Apply
           </button>
@@ -332,7 +332,7 @@ export default function DetailPanel() {
 
         {/* Unit size */}
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Unit Size (bytes)
           </label>
           <div className="flex gap-2">
@@ -340,7 +340,7 @@ export default function DetailPanel() {
               <button
                 key={u}
                 onClick={() => updateNodeData(node.id, { unitSize: u })}
-                className={`flex-1 rounded border py-1 text-xs font-medium transition-all ${
+                className={`flex-1 rounded border py-1 text-xs font-normal transition-all ${
                   (data.unitSize ?? 8) === u
                     ? 'border-orange-500 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
                     : 'border-gray-300 text-gray-500 hover:border-gray-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500'
@@ -355,7 +355,7 @@ export default function DetailPanel() {
         {/* Collapsed ranges */}
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Collapsed Ranges</span>
+            <span className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Collapsed Ranges</span>
             <button
               onClick={addCollapsedRange}
               className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
@@ -363,7 +363,7 @@ export default function DetailPanel() {
               <Plus size={12} /> Add
             </button>
           </div>
-          <p className="mb-2 text-[10px] text-gray-500 dark:text-gray-500">
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-500">
             Address ranges to hide (exclusive end). Shown as <code className="text-gray-700 dark:text-gray-300">···</code> in the node.
           </p>
           {(data.collapsedRanges ?? []).map((r) => (
@@ -405,7 +405,7 @@ export default function DetailPanel() {
     return (
       <div className="flex flex-col gap-3">
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Content</label>
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Content</label>
           <textarea
             value={data.content}
             onChange={(e) => updateNodeData(node.id, { content: e.target.value })}
@@ -435,7 +435,7 @@ export default function DetailPanel() {
 
       {/* Node name */}
       <div className="border-b border-gray-300 px-4 py-3 dark:border-gray-700">
-        <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Name</label>
+        <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Name</label>
         <input
           value={data.name ?? ''}
           onChange={(e) => updateNodeName(node.id, e.target.value)}
@@ -463,7 +463,7 @@ export default function DetailPanel() {
       {/* Connected edges */}
       {connectedEdges.length > 0 && (
         <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
-          <p className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          <p className="mb-2 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Connections ({connectedEdges.length})
           </p>
           <ul className="space-y-1">
@@ -485,7 +485,7 @@ export default function DetailPanel() {
                   </span>
                   <span className="truncate text-gray-700 dark:text-gray-200">{otherName}</span>
                   <span
-                    className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                    className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-white"
                     style={{ backgroundColor: style.color }}
                   >
                     {style.label}

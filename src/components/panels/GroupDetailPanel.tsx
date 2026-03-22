@@ -37,7 +37,7 @@ export default function GroupDetailPanel() {
 
       {/* Group name */}
       <div className="border-b border-gray-300 px-4 py-3 dark:border-gray-700">
-        <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Name</label>
+        <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Name</label>
         <input
           value={data.name ?? ''}
           onChange={(e) => updateNodeName(node.id, e.target.value)}
@@ -56,7 +56,7 @@ export default function GroupDetailPanel() {
 
       {/* Member nodes */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <p className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+        <p className="mb-2 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
           Members ({memberNodes.length})
         </p>
         {memberNodes.length === 0 ? (

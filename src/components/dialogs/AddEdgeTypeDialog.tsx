@@ -43,7 +43,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
       <div className="w-80 rounded-xl bg-white shadow-2xl dark:bg-gray-900">
         {/* Title bar */}
         <div className="flex items-center justify-between rounded-t-xl bg-gray-800 px-4 py-3">
-          <span className="font-semibold text-white">{isEdit ? 'Edit Edge Type' : 'Add Edge Type'}</span>
+          <span className="font-bold text-white">{isEdit ? 'Edit Edge Type' : 'Add Edge Type'}</span>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <X size={18} />
           </button>
@@ -52,7 +52,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
         <div className="space-y-4 p-4">
           {/* Name */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Name
             </label>
             <input
@@ -67,7 +67,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
 
           {/* Color */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Color
             </label>
             <ColorPicker value={color} onChange={(c) => setColor(c ?? '#6366f1')} />
@@ -75,7 +75,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
 
           {/* Line style */}
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
               Line Style
             </label>
             <div className="flex gap-2">
@@ -83,7 +83,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
                 <button
                   key={s}
                   onClick={() => setDashStyle(s)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border-2 py-2 text-xs font-medium transition-all ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border-2 py-2 text-xs font-normal transition-all ${
                     dashStyle === s
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
@@ -114,7 +114,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
           <button
             onClick={handleSubmit}
             disabled={!label.trim()}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isEdit ? 'Save' : 'Add Type'}
           </button>

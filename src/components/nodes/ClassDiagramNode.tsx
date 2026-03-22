@@ -53,13 +53,13 @@ const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
         style={customColor ? { backgroundColor: customColor } : {}}
       >
         <span
-          className={`block text-[10px] ${headerTextColor ? '' : 'text-purple-200'}`}
+          className={`block text-xs ${headerTextColor ? '' : 'text-purple-200'}`}
           style={headerTextColor ? { color: headerTextColor } : undefined}
         >
           «class»
         </span>
         <span
-          className={`block truncate font-bold ${headerTextColor ? '' : 'text-white'}`}
+          className={`block truncate font-bold text-base font-mono ${headerTextColor ? '' : 'text-white'}`}
           style={headerTextColor ? { color: headerTextColor } : undefined}
         >
           {data.className || data.name || "ClassName"}
@@ -70,7 +70,7 @@ const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
       {!dragging && data.fields.length > 0 && (
         <div className="anodi-export-data mx-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
           {data.fields.map((f) => (
-            <div key={f.id} className="relative truncate text-[10px] text-gray-700 dark:text-gray-300" style={{ height: MEMBER_H, lineHeight: `${MEMBER_H}px`, paddingLeft: 12, paddingRight: 12 }}>
+            <div key={f.id} className="relative truncate text-xs text-gray-700 dark:text-gray-300 font-mono" style={{ height: MEMBER_H, lineHeight: `${MEMBER_H}px`, paddingLeft: 12, paddingRight: 12 }}>
               <Handle
                 type="target"
                 position={Position.Left}
@@ -107,7 +107,7 @@ const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
       {!dragging && data.methods.length > 0 && (
         <div className="anodi-export-data mx-2 mb-2 mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
           {data.methods.map((m) => (
-            <div key={m.id} className="relative truncate text-[10px] text-gray-700 dark:text-gray-300" style={{ height: MEMBER_H, lineHeight: `${MEMBER_H}px`, paddingLeft: 12, paddingRight: 12 }}>
+            <div key={m.id} className="relative truncate text-xs text-gray-700 dark:text-gray-300 font-mono" style={{ height: MEMBER_H, lineHeight: `${MEMBER_H}px`, paddingLeft: 12, paddingRight: 12 }}>
               <Handle
                 type="target"
                 position={Position.Left}
@@ -142,7 +142,7 @@ const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
       )}
 
       {!dragging && data.fields.length === 0 && data.methods.length === 0 && (
-        <div className="mb-2 px-3 py-2 text-[10px] text-gray-400 italic">
+        <div className="mb-2 px-3 py-2 text-xs text-gray-400 italic">
           No members defined
         </div>
       )}

@@ -42,6 +42,90 @@ function flushTextareaValues(root: HTMLElement): () => void {
   };
 }
 
+/**
+ * dom-to-svg/svg2pdf can omit textarea rendered values.
+ * Replace each textarea with a styled div (pre-wrapped text) for capture,
+ * then restore the original textarea nodes.
+ */
+function materializeTextareasForSvgCapture(root: HTMLElement): () => void {
+  const swaps: { parent: Node; textarea: HTMLTextAreaElement; replacement: HTMLDivElement }[] = [];
+  const textareas = root.querySelectorAll('textarea');
+
+  textareas.forEach((ta) => {
+    const parent = ta.parentNode;
+    if (!parent) return;
+
+    const replacement = document.createElement('div');
+    const cs = window.getComputedStyle(ta);
+
+    // Copy key text and box styles so exported output matches the live textarea.
+    const styleProps = [
+      'display',
+      'position',
+      'width',
+      'height',
+      'min-width',
+      'min-height',
+      'max-width',
+      'max-height',
+      'box-sizing',
+      'padding',
+      'border',
+      'border-radius',
+      'background',
+      'background-color',
+      'color',
+      'font-family',
+      'font-size',
+      'font-weight',
+      'font-style',
+      'line-height',
+      'letter-spacing',
+      'text-align',
+      'text-transform',
+      'text-indent',
+    ];
+
+    styleProps.forEach((prop) => {
+      replacement.style.setProperty(prop, cs.getPropertyValue(prop));
+    });
+
+    replacement.style.whiteSpace = 'pre-wrap';
+    replacement.style.wordBreak = 'break-word';
+    replacement.style.overflowWrap = 'anywhere';
+    replacement.style.overflow = 'hidden';
+
+    // Force a deterministic fallback chain for PDF conversion so Unicode
+    // symbols/CJK glyphs do not collapse to tofu when the primary family lacks glyphs.
+    const sourceFamily = cs.getPropertyValue('font-family').trim();
+    const familyStack = sourceFamily
+      ? `"Noto Sans KR", "Inter", "JetBrains Mono", ${sourceFamily}`
+      : `"Noto Sans KR", "Inter", "JetBrains Mono", sans-serif`;
+    replacement.style.setProperty('font-family', familyStack);
+
+    // Preserve explicit newlines by materializing lines with <br/> separators.
+    const content = ta.value || ta.placeholder || '';
+    const lines = content.split(/\r\n|\r|\n/);
+    lines.forEach((line, idx) => {
+      replacement.appendChild(document.createTextNode(line));
+      if (idx < lines.length - 1) {
+        replacement.appendChild(document.createElement('br'));
+      }
+    });
+
+    parent.replaceChild(replacement, ta);
+    swaps.push({ parent, textarea: ta, replacement });
+  });
+
+  return () => {
+    swaps.forEach(({ parent, textarea, replacement }) => {
+      if (replacement.parentNode === parent) {
+        parent.replaceChild(textarea, replacement);
+      }
+    });
+  };
+}
+
 /** Detect current theme and return a suitable background colour. */
 function themeBgColor(): string {
   return document.documentElement.classList.contains('dark')
@@ -222,14 +306,15 @@ export async function exportToPdf() {
     }
   });
 
-  // Flush textarea values into DOM text content so dom-to-svg can capture them
-  const restoreTextareas = flushTextareaValues(flowEl);
+  // Materialize textareas to normal text blocks so dom-to-svg/svg2pdf captures
+  // note bodies and other textarea content reliably.
+  const restoreMaterializedTextareas = materializeTextareasForSvgCapture(flowEl);
 
   // Capture the flow element (with nodes, edges, data) to SVG
   const svgDocument = elementToSVG(flowEl);
   await inlineResources(svgDocument.documentElement);
 
-  restoreTextareas();
+  restoreMaterializedTextareas();
 
   // Restore original styles
   flowEl.style.width = origFlowW;
@@ -254,17 +339,26 @@ export async function exportToPdf() {
     hotfixes: ['px_scaling'],
   });
 
-  // Embed Inter and JetBrains Mono fonts so text renders correctly
+  // Register sans/mono font variants used by exported SVG text.
+  // jsPDF/svg2pdf resolves text by family + style (normal/bold/italic/light).
   await Promise.all([
-    embedFont(pdf, '/fonts/Inter-Regular.ttf', 'Inter-Regular.ttf', 'Inter', 'normal'),
-    embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-Bold.ttf', 'Inter', 'bold'),
-    embedFont(pdf, '/fonts/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Regular.ttf', 'JetBrains Mono', 'normal'),
-    embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf', 'JetBrains Mono', 'bold'),
-    
     embedFont(pdf, '/fonts/Inter-Regular.ttf', 'Inter-Regular.ttf', 'helvetica', 'normal'),
-    embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-Bold.ttf', 'helvetica', '600normal'),
+    embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-Bold.ttf', 'helvetica', 'bold'),
+    // Fallbacks for style combinations that may appear in generated SVG.
+    embedFont(pdf, '/fonts/Inter-Regular.ttf', 'Inter-Italic.ttf', 'helvetica', 'italic'),
+    embedFont(pdf, '/fonts/Inter-Bold.ttf', 'Inter-BoldItalic.ttf', 'helvetica', 'bolditalic'),
+    embedFont(pdf, '/fonts/Inter-Regular.ttf', 'Inter-Light.ttf', 'helvetica', 'light'),
+
+    embedFont(pdf, '/fonts/NotoSansKR-Regular.ttf', 'NotoSansKR-Regular.ttf', 'Noto Sans KR', 'normal'),
+    embedFont(pdf, '/fonts/NotoSansKR-Bold.ttf', 'NotoSansKR-Bold.ttf', 'Noto Sans KR', 'bold'),
+    embedFont(pdf, '/fonts/NotoSansKR-Light.ttf', 'NotoSansKR-Light.ttf', 'Noto Sans KR', 'light'),
+    embedFont(pdf, '/fonts/NotoSansKR-Regular.ttf', 'NotoSansKR-Italic.ttf', 'Noto Sans KR', 'italic'),
+
     embedFont(pdf, '/fonts/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Regular.ttf', 'courier', 'normal'),
-    embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf', 'courier', '600normal'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf', 'courier', 'bold'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Italic.ttf', 'JetBrainsMono-Italic.ttf', 'courier', 'italic'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Bold.ttf', 'JetBrainsMono-BoldItalic.ttf', 'courier', 'bolditalic'),
+    embedFont(pdf, '/fonts/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Light.ttf', 'courier', 'light'),
   ]);
 
   // Draw background
