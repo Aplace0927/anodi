@@ -195,12 +195,19 @@ function getCellNumberSigned(cell: MemoryCell): boolean {
   return true;
 }
 
+function numberKindShortLabel(kind: MemoryNumberKind, signed: boolean): string {
+  if (kind === "float") return "f32";
+  if (kind === "double") return "f64";
+  if (kind === "int8_t") return signed ? "i8" : "u8";
+  if (kind === "int16_t") return signed ? "i16" : "u16";
+  if (kind === "int32_t") return signed ? "i32" : "u32";
+  return signed ? "i64" : "u64";
+}
+
 function numberCellMetaLabel(cell: MemoryCell): string {
   const kind = getCellNumberKind(cell);
   const endianLabel = (cell.endianness ?? "little") === "big" ? "BE" : "LE";
-  if (!isIntegerKind(kind)) return `${kind} ${endianLabel}`;
-  const signedLabel = getCellNumberSigned(cell) ? "signed" : "unsigned";
-  return `${kind} ${signedLabel} ${endianLabel}`;
+  return `${numberKindShortLabel(kind, getCellNumberSigned(cell))} ${endianLabel}`;
 }
 
 export function cellByteSize(
@@ -572,6 +579,29 @@ function CellForm({
             <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Type
             </span>
+            <div className="mr-1 flex items-center gap-1">
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                {numberSigned ? "Signed" : "Unsigned"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setNumberSigned((v) => !v)}
+                className={`relative h-4 w-8 rounded-full border transition-all ${
+                  numberSigned
+                    ? "border-green-500 bg-green-500/30"
+                    : "border-orange-500 bg-orange-500/30"
+                }`}
+                title={numberSigned ? "Switch to unsigned" : "Switch to signed"}
+              >
+                <span
+                  className={`absolute top-[1px] h-3 w-3 rounded-full transition-all ${
+                    numberSigned
+                      ? "left-[1px] bg-green-600 dark:bg-green-400"
+                      : "left-[15px] bg-orange-600 dark:bg-orange-400"
+                  }`}
+                />
+              </button>
+            </div>
             <div className="grid flex-1 grid-cols-2 gap-1">
               {(["int8_t", "int16_t", "int32_t", "int64_t", "float", "double"] as MemoryNumberKind[]).map((kind) => (
                 <button
@@ -583,26 +613,11 @@ function CellForm({
                       : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
                   }`}
                 >
-                  {kind}
+                  {numberKindShortLabel(kind, numberSigned)}
                 </button>
               ))}
             </div>
           </div>
-          {isIntegerKind(numberKind) && (
-            <div className="mb-1 flex items-center gap-2">
-              <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                Signed
-              </span>
-              <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={numberSigned}
-                  onChange={(e) => setNumberSigned(e.target.checked)}
-                />
-                {numberSigned ? "Signed" : "Unsigned"}
-              </label>
-            </div>
-          )}
           <div className="mb-1 flex items-center gap-1">
             <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Endianness
