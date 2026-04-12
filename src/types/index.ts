@@ -8,6 +8,7 @@ export type SourceLanguage =
   | 'typescript'
   | 'rust'
   | 'go'
+  | 'ocaml'
   | 'assembly (x86-64)'
   | 'assembly (arm)';
 
@@ -51,10 +52,11 @@ export interface MemoryCollapsedRange {
 }
 
 /** Type of user-provided content attached to a memory address. */
-export type MemoryCellType = 'hex' | 'text' | 'field' | 'integer';
+export type MemoryCellType = 'hex' | 'text' | 'field' | 'number' | 'integer';
 
 export type IntegerSize = 1 | 2 | 4 | 8;
 export type Endianness = 'little' | 'big';
+export type MemoryNumberKind = 'int8_t' | 'int16_t' | 'int32_t' | 'int64_t' | 'float' | 'double';
 
 /**
  * A user annotation attached to a specific memory address inside a MemoryLayoutNode.
@@ -62,18 +64,20 @@ export type Endianness = 'little' | 'big';
  * - `hex`     – raw bytes shown as "41 42 43 00"
  * - `text`    – plain string shown as "Hello"
  * - `field`   – named field spanning `fieldSize` bytes (e.g. `int size`)
- * - `integer` – integer value rendered as individual bytes (1/2/4/8 bytes, little/big endian)
+ * - `number`  – scalar value rendered as bytes (`int*_t`, `float`, `double`, little/big endian)
  */
 export interface MemoryCell {
   id: string;
   type: MemoryCellType;
   address: string;      // hex string, e.g. "0x4010"
-  value?: string;       // for hex / text / integer types
+  value?: string;       // for hex / text / number types
   fieldName?: string;   // for field type: name of the field
   fieldSize?: number;   // for field type: size in bytes
-  integerSize?: IntegerSize;  // for integer type: byte width (1, 2, 4, 8)
-  endianness?: Endianness;    // for integer type: byte order
-  fieldColor?: string;  // custom color for field styling
+  numberKind?: MemoryNumberKind; // for number type: scalar kind
+  numberSigned?: boolean;        // for integer number kinds: signed vs unsigned
+  integerSize?: IntegerSize;     // legacy support for old "integer" cells
+  endianness?: Endianness;       // for number/legacy-integer type: byte order
+  fieldColor?: string;           // custom color for memory cell styling
 }
 
 export interface MemoryLayoutData extends Record<string, unknown> {

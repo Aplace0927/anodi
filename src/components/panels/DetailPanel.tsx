@@ -15,7 +15,7 @@ import { v4 } from '../../utils/uuid';
 import { findEllipsisIndices } from '../../utils/code';
 import ColorPicker from '../ColorPicker';
 
-const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
+const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'ocaml', 'assembly (x86-64)', 'assembly (arm)'];
 
 /** Maximum memory range per node: 4 KB (one page). */
 const MAX_MEMORY_RANGE = 0x1000;
