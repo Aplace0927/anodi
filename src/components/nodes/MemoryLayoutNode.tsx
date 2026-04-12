@@ -9,6 +9,7 @@ import type {
   MemoryCellType,
   IntegerSize,
   Endianness,
+  MemoryNumberKind,
 } from "../../types";
 import { useGraphStore } from "../../store/graphStore";
 import { v4 } from "../../utils/uuid";
@@ -102,9 +103,11 @@ function integerToBytes(
   value: string,
   size: IntegerSize,
   endianness: Endianness,
+  signed: boolean,
 ): number[] {
   try {
     let n = parseIntegerValue(value);
+    if (!signed && n < 0n) throw new Error("unsigned integers cannot be negative");
     const mask = (1n << BigInt(size * 8)) - 1n;
     n = n & mask; // truncate to size
     const bytes: number[] = [];
@@ -119,10 +122,92 @@ function integerToBytes(
   }
 }
 
+function isIntegerKind(
+  kind: MemoryNumberKind,
+): kind is "int8_t" | "int16_t" | "int32_t" | "int64_t" {
+  return kind === "int8_t" || kind === "int16_t" || kind === "int32_t" || kind === "int64_t";
+}
+
+function numberKindSize(kind: MemoryNumberKind): IntegerSize {
+  switch (kind) {
+    case "int8_t":
+      return 1;
+    case "int16_t":
+      return 2;
+    case "int32_t":
+    case "float":
+      return 4;
+    case "int64_t":
+    case "double":
+      return 8;
+  }
+}
+
+function integerSizeToKind(size?: IntegerSize): MemoryNumberKind {
+  switch (size) {
+    case 1:
+      return "int8_t";
+    case 2:
+      return "int16_t";
+    case 8:
+      return "int64_t";
+    case 4:
+    default:
+      return "int32_t";
+  }
+}
+
+function numberToBytes(
+  value: string,
+  kind: MemoryNumberKind,
+  endianness: Endianness,
+  signed: boolean,
+): number[] {
+  if (kind === "float") {
+    const n = Number(value.trim() || "0");
+    if (!Number.isFinite(n)) throw new Error("invalid float value");
+    const buf = new ArrayBuffer(4);
+    const dv = new DataView(buf);
+    dv.setFloat32(0, n, endianness === "little");
+    return Array.from(new Uint8Array(buf));
+  }
+  if (kind === "double") {
+    const n = Number(value.trim() || "0");
+    if (!Number.isFinite(n)) throw new Error("invalid double value");
+    const buf = new ArrayBuffer(8);
+    const dv = new DataView(buf);
+    dv.setFloat64(0, n, endianness === "little");
+    return Array.from(new Uint8Array(buf));
+  }
+
+  return integerToBytes(value, numberKindSize(kind), endianness, signed);
+}
+
+function getCellNumberKind(cell: MemoryCell): MemoryNumberKind {
+  if (cell.type === "number") return cell.numberKind ?? "int32_t";
+  return integerSizeToKind(cell.integerSize);
+}
+
+function getCellNumberSigned(cell: MemoryCell): boolean {
+  const kind = getCellNumberKind(cell);
+  if (!isIntegerKind(kind)) return true;
+  if (cell.type === "number") return cell.numberSigned ?? true;
+  return true;
+}
+
+function numberCellMetaLabel(cell: MemoryCell): string {
+  const kind = getCellNumberKind(cell);
+  const endianLabel = (cell.endianness ?? "little") === "big" ? "BE" : "LE";
+  if (!isIntegerKind(kind)) return `${kind} ${endianLabel}`;
+  const signedLabel = getCellNumberSigned(cell) ? "signed" : "unsigned";
+  return `${kind} ${signedLabel} ${endianLabel}`;
+}
+
 export function cellByteSize(
-  cell: Pick<MemoryCell, "type" | "value" | "fieldSize" | "integerSize">,
+  cell: Pick<MemoryCell, "type" | "value" | "fieldSize" | "integerSize" | "numberKind">,
 ): number {
   if (cell.type === "field") return cell.fieldSize ?? 1;
+  if (cell.type === "number") return numberKindSize(cell.numberKind ?? "int32_t");
   if (cell.type === "integer") return cell.integerSize ?? 4;
   if (cell.type === "hex")
     return Math.max(1, parseHexBytes(cell.value ?? "").length);
@@ -133,7 +218,7 @@ export function cellByteSize(
 
 interface ByteAnnotation {
   value: number;
-  type: "hex" | "text" | "field" | "integer";
+  type: "hex" | "text" | "field" | "number";
   cellId: string;
   isFirst: boolean;
   isLast: boolean;
@@ -187,15 +272,16 @@ function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
             fieldEndAddr: startAddr + size,
           });
       }
-    } else if (cell.type === "integer") {
-      const size = cell.integerSize ?? 4;
+    } else if (cell.type === "number" || cell.type === "integer") {
+      const numberKind = getCellNumberKind(cell);
+      const signed = getCellNumberSigned(cell);
       const endianness = cell.endianness ?? "little";
-      const bytes = integerToBytes(cell.value ?? "0", size as IntegerSize, endianness);
+      const bytes = numberToBytes(cell.value ?? "0", numberKind, endianness, signed);
       bytes.forEach((b, i) => {
         if (!map.has(startAddr + i))
           map.set(startAddr + i, {
             value: b,
-            type: "integer",
+            type: "number",
             cellId: cell.id,
             isFirst: i === 0,
             isLast: i === bytes.length - 1,
@@ -300,21 +386,23 @@ function CellForm({
   const [value, setValue] = useState("");
   const [fieldName, setFieldName] = useState("");
   const [fieldSize, setFieldSize] = useState<number | "">(unitSize);
-  const [integerSize, setIntegerSize] = useState<IntegerSize>(4);
+  const [numberKind, setNumberKind] = useState<MemoryNumberKind>("int32_t");
+  const [numberSigned, setNumberSigned] = useState(true);
   const [endianness, setEndianness] = useState<Endianness>("little");
   const [fieldColor, setFieldColor] = useState<string | undefined>(undefined);
   const [sizeError, setSizeError] = useState(false);
   const [overlapError, setOverlapError] = useState(false);
-  const [intValueError, setIntValueError] = useState(false);
+  const [numberValueError, setNumberValueError] = useState(false);
 
   useEffect(() => {
     if (cellToEdit) {
-      setType(cellToEdit.type);
+      setType(cellToEdit.type === "integer" ? "number" : cellToEdit.type);
       setAddress(cellToEdit.address);
       setValue(cellToEdit.value ?? "");
       setFieldName(cellToEdit.fieldName ?? "");
       setFieldSize(cellToEdit.fieldSize ?? "");
-      setIntegerSize(cellToEdit.integerSize ?? 4);
+      setNumberKind(getCellNumberKind(cellToEdit));
+      setNumberSigned(getCellNumberSigned(cellToEdit));
       setEndianness(cellToEdit.endianness ?? "little");
       setFieldColor(cellToEdit.fieldColor);
     }
@@ -325,8 +413,8 @@ function CellForm({
       ? typeof fieldSize === "number"
         ? fieldSize
         : 0
-      : type === "integer"
-        ? integerSize
+      : type === "number"
+        ? numberKindSize(numberKind)
         : type === "hex"
           ? parseHexBytes(value).length
           : textToBytes(value).length;
@@ -334,7 +422,7 @@ function CellForm({
   const handleSave = () => {
     setSizeError(false);
     setOverlapError(false);
-    setIntValueError(false);
+    setNumberValueError(false);
 
     const addr = address.trim();
     const normalizedAddress = fmtHex(parseHexAddr(addr), padLen);
@@ -353,23 +441,32 @@ function CellForm({
         fieldSize: sz,
         fieldColor,
       };
-    } else if (type === "integer") {
-      // Validate integer value
+    } else if (type === "number") {
       try {
-        parseIntegerValue(value);
+        if (isIntegerKind(numberKind)) {
+          const parsed = parseIntegerValue(value);
+          if (!numberSigned && parsed < 0n) {
+            throw new Error("unsigned integers cannot be negative");
+          }
+        } else {
+          const parsed = Number(value.trim() || "0");
+          if (!Number.isFinite(parsed)) throw new Error("invalid floating value");
+        }
       } catch {
-        setIntValueError(true);
+        setNumberValueError(true);
         return;
       }
       newCellData = {
         type,
         address: normalizedAddress,
         value,
-        integerSize,
+        numberKind,
+        numberSigned: isIntegerKind(numberKind) ? numberSigned : undefined,
         endianness,
+        fieldColor,
       };
     } else {
-      newCellData = { type, address: normalizedAddress, value };
+      newCellData = { type, address: normalizedAddress, value, fieldColor };
     }
 
     // Check for overlap, excluding the cell being edited
@@ -398,7 +495,7 @@ function CellForm({
     <div className="rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/80 p-2 text-xs text-gray-900 dark:text-white">
       {/* Type selector (disabled when editing) */}
       <div className="mb-2 flex gap-1">
-        {(["hex", "text", "field", "integer"] as MemoryCellType[]).map((t) => (
+        {(["hex", "text", "field", "number"] as MemoryCellType[]).map((t) => (
           <button
             key={t}
             onClick={() => {
@@ -413,7 +510,7 @@ function CellForm({
             } ${cellToEdit ? "cursor-not-allowed opacity-60" : "hover:border-gray-500"}`}
             disabled={!!cellToEdit}
           >
-            {t}
+            {t === "number" ? "Number" : t}
           </button>
         ))}
       </div>
@@ -468,38 +565,44 @@ function CellForm({
               Size must be ≥ 1 byte.
             </p>
           )}
-          <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Color
-            </span>
-            <ColorPicker
-              value={fieldColor}
-              onChange={(c) => setFieldColor(c)}
-            />
-          </div>
         </>
-      ) : type === "integer" ? (
+      ) : type === "number" ? (
         <>
           <div className="mb-1 flex items-center gap-1">
             <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Size
+              Type
             </span>
-            <div className="flex flex-1 gap-1">
-              {([1, 2, 4, 8] as IntegerSize[]).map((s) => (
+            <div className="grid flex-1 grid-cols-2 gap-1">
+              {(["int8_t", "int16_t", "int32_t", "int64_t", "float", "double"] as MemoryNumberKind[]).map((kind) => (
                 <button
-                  key={s}
-                  onClick={() => setIntegerSize(s)}
+                  key={kind}
+                  onClick={() => setNumberKind(kind)}
                   className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
-                    integerSize === s
+                    numberKind === kind
                       ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
                       : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
                   }`}
                 >
-                  {s}B
+                  {kind}
                 </button>
               ))}
             </div>
           </div>
+          {isIntegerKind(numberKind) && (
+            <div className="mb-1 flex items-center gap-2">
+              <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                Signed
+              </span>
+              <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={numberSigned}
+                  onChange={(e) => setNumberSigned(e.target.checked)}
+                />
+                {numberSigned ? "Signed" : "Unsigned"}
+              </label>
+            </div>
+          )}
           <div className="mb-1 flex items-center gap-1">
             <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
               Endian
@@ -527,23 +630,20 @@ function CellForm({
             <input
               value={value}
               onChange={(e) => {
-                setIntValueError(false);
-                const raw = e.target.value;
-                // Allow decimal, 0b binary, 0x hex, 0o octal, and negative sign
-                const sanitized = raw.replace(/[^0-9a-fA-FxXbBoO\-]/g, "");
-                setValue(sanitized);
+                setNumberValueError(false);
+                setValue(e.target.value);
               }}
-              placeholder="255, 0xFF, 0b11111111, 0o377"
+              placeholder={isIntegerKind(numberKind) ? "255, 0xFF, 0b11111111, 0o377" : "3.14, -2.5e3"}
               className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-green-700 dark:text-green-300 focus:outline-none ${
-                intValueError
+                numberValueError
                   ? "border-red-500 ring-1 ring-red-500"
                   : "border-gray-300 dark:border-gray-600"
               }`}
             />
           </div>
-          {intValueError && (
+          {numberValueError && (
             <p className="mb-1 text-xs text-red-400">
-              Invalid integer value.
+              Invalid number value.
             </p>
           )}
         </>
@@ -567,6 +667,16 @@ function CellForm({
           />
         </div>
       )}
+
+      <div className="mb-1 flex items-center gap-1">
+        <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+          Color
+        </span>
+        <ColorPicker
+          value={fieldColor}
+          onChange={(c) => setFieldColor(c)}
+        />
+      </div>
 
       {computedSize > 0 && (
         <p className="mb-1 text-right text-xs text-gray-500">
@@ -705,10 +815,13 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     }
 
     if (ann.type === "hex") {
+      const cell = cells.find((c) => c.id === ann.cellId);
+      const customColor = cell?.fieldColor;
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-xs text-amber-300"
+          className={`inline-block w-[18px] text-center font-mono text-xs ${customColor ? "" : "text-amber-300"}`}
+          style={customColor ? { color: customColor } : undefined}
           title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (hex)`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
@@ -717,10 +830,13 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     }
 
     if (ann.type === "text") {
+      const cell = cells.find((c) => c.id === ann.cellId);
+      const customColor = cell?.fieldColor;
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-xs text-cyan-300"
+          className={`inline-block w-[18px] text-center font-mono text-xs ${customColor ? "" : "text-cyan-300"}`}
+          style={customColor ? { color: customColor } : undefined}
           title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (text "${ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : "."}")`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
@@ -728,12 +844,15 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
       );
     }
 
-    if (ann.type === "integer") {
+    if (ann.type === "number") {
+      const cell = cells.find((c) => c.id === ann.cellId);
+      const customColor = cell?.fieldColor;
       return (
         <span
           key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-xs text-green-700 dark:text-green-300"
-          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (integer)`}
+          className={`inline-block w-[18px] text-center font-mono text-xs ${customColor ? "" : "text-green-700 dark:text-green-300"}`}
+          style={customColor ? { color: customColor } : undefined}
+          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (number)`}
         >
           {ann.value.toString(16).toUpperCase().padStart(2, "0")}
         </span>
@@ -836,7 +955,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                     const addr = seg.startAddr + j;
                     const ann = byteMap.get(addr);
                     let ch = ".";
-                    if (ann && (ann.type === "hex" || ann.type === "text" || ann.type === "integer")) {
+                    if (ann && (ann.type === "hex" || ann.type === "text" || ann.type === "number")) {
                       ch = ann.value >= 0x20 && ann.value < 0x7f
                         ? String.fromCharCode(ann.value)
                         : ".";
@@ -952,7 +1071,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
       if (!ann) {
         chars.push(".");
-      } else if (ann.type === "hex" || ann.type === "text" || ann.type === "integer") {
+      } else if (ann.type === "hex" || ann.type === "text" || ann.type === "number") {
         chars.push(
           ann.value >= 0x20 && ann.value < 0x7f
             ? String.fromCharCode(ann.value)
@@ -1261,7 +1380,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                       onClick={() => setEditingCellId(c.id)}
                     >
                       <span className="w-5 shrink-0 rounded bg-gray-200 dark:bg-gray-700 px-0.5 text-center font-mono text-xs text-gray-700 dark:text-gray-300">
-                        {c.type === "hex" ? "H" : c.type === "text" ? "T" : c.type === "integer" ? "I" : "F"}
+                        {c.type === "hex" ? "H" : c.type === "text" ? "T" : (c.type === "number" || c.type === "integer") ? "N" : "F"}
                       </span>
 
                       <span className="font-mono text-green-700 dark:text-green-300">
@@ -1271,8 +1390,8 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                       <span className="flex-1 truncate text-gray-700 dark:text-gray-300">
                         {c.type === "field"
                           ? `${c.fieldName} (${c.fieldSize}B)`
-                          : c.type === "integer"
-                            ? `${c.value} (${c.integerSize}B ${c.endianness === "big" ? "BE" : "LE"})`
+                          : c.type === "number" || c.type === "integer"
+                            ? `${c.value} (${numberCellMetaLabel(c)})`
                             : `${c.value} (${cellByteSize(c)}B)`}
                       </span>
 

@@ -8,7 +8,7 @@ interface Props {
   getViewportCenter?: () => { x: number; y: number };
 }
 
-const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
+const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'ocaml', 'assembly (x86-64)', 'assembly (arm)'];
 
 export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
   const addNode = useGraphStore((s) => s.addNode);
@@ -176,4 +176,3 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
     </div>
   );
 }
-

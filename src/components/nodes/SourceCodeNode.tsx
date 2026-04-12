@@ -22,11 +22,12 @@ const LANG_COLORS: Record<string, string> = {
   typescript: 'bg-blue-400',
   rust: 'bg-orange-600',
   go: 'bg-cyan-500',
+  ocaml: 'bg-amber-600',
   'assembly (x86-64)': 'bg-gray-400',
   'assembly (arm)': 'bg-gray-400',
 };
 
-const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'assembly (x86-64)', 'assembly (arm)'];
+const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'ocaml', 'assembly (x86-64)', 'assembly (arm)'];
 const MONACO_LANG: Record<SourceLanguage, string> = {
   c: 'c',
   cpp: 'cpp',
@@ -35,6 +36,7 @@ const MONACO_LANG: Record<SourceLanguage, string> = {
   typescript: 'typescript',
   rust: 'rust',
   go: 'go',
+  ocaml: 'ocaml',
   'assembly (x86-64)': 'nasm', // Fallback for basic highlighting
   'assembly (arm)': 'arm-asm',
 };
@@ -47,6 +49,7 @@ const SYNTAX_HIGHLIGHTER_LANG: Record<SourceLanguage, string> = {
   typescript: 'typescript',
   rust: 'rust',
   go: 'go',
+  ocaml: 'ocaml',
   'assembly (x86-64)': 'nasm',
   'assembly (arm)': 'arm-asm',
 };
