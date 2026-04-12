@@ -580,9 +580,6 @@ function CellForm({
               Type
             </span>
             <div className="mr-1 flex items-center gap-1">
-              <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                {numberSigned ? "Signed" : "Unsigned"}
-              </span>
               <button
                 type="button"
                 onClick={() => setNumberSigned((v) => !v)}
@@ -594,16 +591,32 @@ function CellForm({
                 title={numberSigned ? "Switch to unsigned" : "Switch to signed"}
               >
                 <span
-                  className={`absolute top-[1px] h-3 w-3 rounded-full transition-all ${
-                    numberSigned
-                      ? "left-[1px] bg-green-600 dark:bg-green-400"
-                      : "left-[15px] bg-orange-600 dark:bg-orange-400"
+                  className={`absolute -top-[0.5px] h-4 w-4 rounded-full transition-all text-xs text-gray-200 dark:text-gray-800 ${
+                  numberSigned
+                  ? "-left-[1px] bg-green-600 dark:bg-green-400"
+                  : "left-[17px] bg-orange-600 dark:bg-orange-400"
                   }`}
-                />
+                >
+                  {numberSigned ? "i" : "u"}
+                </span>
               </button>
             </div>
-            <div className="grid flex-1 grid-cols-2 gap-1">
-              {(["int8_t", "int16_t", "int32_t", "int64_t", "float", "double"] as MemoryNumberKind[]).map((kind) => (
+            <div className="grid flex-1 grid-cols-[repeat(4,minmax(0,1fr))_auto_repeat(2,minmax(0,1fr))] gap-x-1">
+              {(["int8_t", "int16_t", "int32_t", "int64_t"] as MemoryNumberKind[]).map((kind) => (
+                <button
+                  key={kind}
+                  onClick={() => setNumberKind(kind)}
+                  className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
+                    numberKind === kind
+                      ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                      : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
+                  }`}
+                >
+                  {numberKindShortLabel(kind, numberSigned)}
+                </button>
+              ))}
+              <span className="py-0.5 text-center text-xs text-gray-400 dark:text-gray-500">|</span>
+              {(["float", "double"] as MemoryNumberKind[]).map((kind) => (
                 <button
                   key={kind}
                   onClick={() => setNumberKind(kind)}
@@ -620,7 +633,7 @@ function CellForm({
           </div>
           <div className="mb-1 flex items-center gap-1">
             <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Endianness
+              Endian
             </span>
             <div className="flex flex-1 gap-1">
               {(["little", "big"] as Endianness[]).map((e) => (
