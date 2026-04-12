@@ -605,7 +605,7 @@ function CellForm({
           )}
           <div className="mb-1 flex items-center gap-1">
             <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Endian
+              Endianness
             </span>
             <div className="flex flex-1 gap-1">
               {(["little", "big"] as Endianness[]).map((e) => (
