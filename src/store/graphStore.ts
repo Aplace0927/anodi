@@ -13,6 +13,10 @@ import type {
   AnodiEdgeData,
   UserEdgeType,
   GroupData,
+  EdgePathStyle,
+  EdgeStylePatch,
+  TokenAnchor,
+  SourceCodeData,
 } from '../types';
 import { USER_EDGE_SHORTCUT_KEYS, MAX_USER_EDGE_TYPES, GROUP_PADDING, GROUP_HEADER_HEIGHT, GROUP_MIN_WIDTH, GROUP_MIN_HEIGHT } from '../types';
 import { alignNodes, distributeNodes, computeAutoLayout } from '../utils/layout';
@@ -69,6 +73,10 @@ interface GraphState {
   updateNodeName: (id: string, name: string) => void;
   /** Apply several position/data updates as a single undo step. */
   updateNodesBulk: (updates: { id: string; position?: { x: number; y: number }; data?: Partial<NodeData> }[]) => void;
+  /** Add a word/range connection point to a source node; returns the anchor id. */
+  addTokenAnchor: (nodeId: string, anchor: Omit<TokenAnchor, 'id'>) => string;
+  /** Remove a connection point and any edges attached to it (single undo step). */
+  removeTokenAnchor: (nodeId: string, anchorId: string) => void;
   /** Add several nodes as a single undo step; returns the new ids. */
   addNodes: (nodes: { name: string; data: NodeData; position?: { x: number; y: number } }[]) => string[];
   onNodesChange: (changes: NodeChange<AnodiNode>[]) => void;
@@ -80,6 +88,11 @@ interface GraphState {
   swapEdgeDirection: (edgeId: string) => void;
   updateEdgeRelationship: (edgeId: string, relationship: EdgeRelationship) => void;
   updateEdgeLabel: (edgeId: string, label: string) => void;
+  /** Patch visual edge settings (path style, width, arrows, color). `undefined` values reset to default. */
+  updateEdgeStyle: (edgeIds: string | string[], patch: EdgeStylePatch) => void;
+  /** Board-wide path style used by edges without their own `pathStyle`. */
+  defaultEdgePathStyle: EdgePathStyle;
+  setDefaultEdgePathStyle: (style: EdgePathStyle) => void;
   /** Create an edge programmatically (one undo step); returns the new edge id. */
   addEdgeBetween: (
     source: string,
@@ -191,6 +204,19 @@ function loadSnapToGrid(): boolean {
   }
 }
 
+const EDGE_PATH_STYLE_KEY = 'anodi-edge-path-style';
+
+function loadDefaultEdgePathStyle(): EdgePathStyle {
+  try {
+    const v = localStorage.getItem(EDGE_PATH_STYLE_KEY);
+    return v === 'bezier' || v === 'step' ? v : 'straight';
+  } catch {
+    return 'straight';
+  }
+}
+
+let anchorCounter = Date.now();
+
 const USER_EDGE_TYPES_KEY = 'anodi-user-edge-types';
 
 function loadUserEdgeTypes(): UserEdgeType[] {
@@ -269,6 +295,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   currentBoardId: '',
   saveStatus: 'saved',
   snapToGrid: loadSnapToGrid(),
+  defaultEdgePathStyle: loadDefaultEdgePathStyle(),
   past: [],
   future: [],
   groupHoverDelay: 600,
@@ -323,6 +350,35 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           data: u.data ? ({ ...n.data, ...u.data } as NodeData) : n.data,
         };
       }),
+    }));
+  },
+
+  addTokenAnchor: (nodeId, anchor) => {
+    const id = `a${(++anchorCounter).toString(36)}`;
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId || n.data.kind !== 'source') return n;
+        const d = n.data as SourceCodeData;
+        return { ...n, data: { ...d, tokenAnchors: [...(d.tokenAnchors ?? []), { ...anchor, id }] } };
+      }),
+    }));
+    return id;
+  },
+
+  removeTokenAnchor: (nodeId, anchorId) => {
+    const prefix = `anchor-${anchorId}-`;
+    const touches = (nid: string, h: string | null | undefined) => nid === nodeId && !!h?.startsWith(prefix);
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId || n.data.kind !== 'source') return n;
+        const d = n.data as SourceCodeData;
+        return { ...n, data: { ...d, tokenAnchors: (d.tokenAnchors ?? []).filter((a) => a.id !== anchorId) } };
+      }),
+      edges: s.edges.filter((e) => !touches(e.source, e.sourceHandle) && !touches(e.target, e.targetHandle)),
     }));
   },
 
@@ -508,6 +564,34 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           : e
       ),
     }));
+  },
+
+  updateEdgeStyle: (edgeIds, patch) => {
+    const ids = new Set(Array.isArray(edgeIds) ? edgeIds : [edgeIds]);
+    // The native color input fires continuously while dragging; coalesce those
+    const colorOnly = Object.keys(patch).length === 1 && 'color' in patch;
+    set((s) => ({
+      ...(colorOnly
+        ? coalescedHistory(s, `${[...ids].join(',')}:color`)
+        : { past: pushSnapshot(s.past, s.nodes, s.edges), future: [] }),
+      edges: s.edges.map((e) => {
+        if (!ids.has(e.id)) return e;
+        const data = { ...e.data, ...patch } as AnodiEdgeData;
+        for (const k of Object.keys(patch) as (keyof EdgeStylePatch)[]) {
+          if (patch[k] === undefined) delete data[k];
+        }
+        return { ...e, data };
+      }),
+    }));
+  },
+
+  setDefaultEdgePathStyle: (style) => {
+    try {
+      localStorage.setItem(EDGE_PATH_STYLE_KEY, style);
+    } catch {
+      // ignore
+    }
+    set({ defaultEdgePathStyle: style });
   },
 
   addEdgeBetween: (source, target, opts) => {

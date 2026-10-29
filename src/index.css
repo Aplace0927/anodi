@@ -93,12 +93,16 @@ body,
   z-index: auto !important;
 }
 
+/* No stacking context on the edges layer: each edge SVG carries its own
+   z-index (set in App) so edges attached to word anchors inside a node can
+   render above that node even when it is selected (z-index 1000). */
 .react-flow__edges {
-  z-index: 5 !important;
+  z-index: auto !important;
 }
 
+/* Above every edge, including word-anchor edges (z-index 1001). */
 .react-flow__edgelabel-renderer {
-  z-index: 6 !important;
+  z-index: 1002 !important;
 }
 
 /* Group nodes should not show handles */

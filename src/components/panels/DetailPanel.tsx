@@ -9,12 +9,16 @@ import type {
   MemoryCollapsedRange,
   MemoryLayoutData,
   MemoryUnitSize,
+  Endianness,
+  PointerSize,
   NodeData,
 } from '../../types';
 import { getEdgeStyle } from '../../types';
 import { v4 } from '../../utils/uuid';
 import { findEllipsisIndices } from '../../utils/code';
+import { anchorText } from '../../utils/tokenAnchor';
 import ColorPicker from '../ColorPicker';
+import Segmented from '../ui/Segmented';
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'ocaml', 'assembly (x86-64)', 'assembly (arm)'];
 
@@ -82,6 +86,7 @@ export default function DetailPanel() {
   const selectNode = useGraphStore((s) => s.selectNode);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const updateNodeName = useGraphStore((s) => s.updateNodeName);
+  const removeTokenAnchor = useGraphStore((s) => s.removeTokenAnchor);
 
   const onEdgesChange = useGraphStore((s) => s.onEdgesChange);
 
@@ -156,6 +161,41 @@ export default function DetailPanel() {
         <p className="text-xs text-gray-500 dark:text-gray-500">
           Open the inline editor (✎ button on the node) to edit code with syntax highlighting.
         </p>
+        {/* Word connection points */}
+        <div>
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+            Connection Points
+          </label>
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-500">
+            ⌘/Ctrl-click a word (or ⌘/Ctrl-drag a range) in the code to add a connection point. Right-click code for more.
+          </p>
+          {(data.tokenAnchors ?? []).length === 0 ? (
+            <p className="text-xs italic text-gray-400 dark:text-gray-500">No connection points</p>
+          ) : (
+            <ul className="space-y-1">
+              {[...(data.tokenAnchors ?? [])]
+                .sort((a, b) => a.line - b.line || a.start - b.start)
+                .map((a) => {
+                  const text = anchorText(data.code, data.collapsedLineMap ?? [], a);
+                  return (
+                    <li key={a.id} className="flex items-center gap-2 rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                      <span className="shrink-0 text-gray-500 dark:text-gray-400">L{a.line}</span>
+                      <code className={`truncate ${text ? 'text-indigo-600 dark:text-indigo-300' : 'italic text-gray-400'}`}>
+                        {text ?? 'missing'}
+                      </code>
+                      <button
+                        onClick={() => removeTokenAnchor(node.id, a.id)}
+                        title="Remove connection point (and its edges)"
+                        className="ml-auto text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+        </div>
         {/* Collapsed line map — one input per "..." marker */}
         {ellipsisIndices.length > 0 && (
           <div>
@@ -372,7 +412,7 @@ export default function DetailPanel() {
                 onEdgesChange(staleEdgeIds);
               }
             }}
-            className="mt-2 w-full rounded bg-orange-700 px-2 py-1 text-xs font-bold text-white hover:bg-orange-600"
+            className="mt-2 w-full rounded bg-indigo-600 px-2 py-1 text-xs font-bold text-white hover:bg-indigo-700"
           >
             Apply
           </button>
@@ -383,22 +423,92 @@ export default function DetailPanel() {
           <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
             Unit Size (bytes)
           </label>
-          <div className="flex gap-2">
-            {([4, 8, 16] as MemoryUnitSize[]).map((u) => (
-              <button
-                key={u}
-                onClick={() => updateNodeData(node.id, { unitSize: u })}
-                className={`flex-1 rounded border py-1 text-xs font-normal transition-all ${
-                  (data.unitSize ?? 8) === u
-                    ? 'border-orange-500 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
-                    : 'border-gray-300 text-gray-500 hover:border-gray-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500'
-                }`}
-              >
-                {u}B
-              </button>
-            ))}
+          <Segmented
+            size="md"
+            options={([4, 8, 16] as MemoryUnitSize[]).map((u) => ({ id: u, label: `${u}B` }))}
+            value={data.unitSize ?? 8}
+            onChange={(u) => updateNodeData(node.id, { unitSize: u })}
+          />
+        </div>
+
+        {/* Defaults for new number / pointer cells and the inspector */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Endianness</label>
+            <Segmented
+              options={[
+                { id: 'little', label: 'Little' },
+                { id: 'big', label: 'Big' },
+              ]}
+              value={data.defaultEndianness ?? 'little'}
+              onChange={(v: Endianness) => updateNodeData(node.id, { defaultEndianness: v })}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Pointer</label>
+            <Segmented
+              options={[
+                { id: 4, label: '32-bit' },
+                { id: 8, label: '64-bit' },
+              ]}
+              value={data.pointerSize ?? 8}
+              onChange={(v: PointerSize) => updateNodeData(node.id, { pointerSize: v })}
+            />
           </div>
         </div>
+
+        {/* Snapshots */}
+        {(data.states ?? []).length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">States</label>
+            <p className="mb-2 text-xs text-gray-500 dark:text-gray-500">
+              Switch states on the node; Δ highlights bytes changed since the previous state.
+            </p>
+            <ul className="space-y-1">
+              {(data.states ?? []).map((st) => {
+                const active = st.id === data.activeStateId;
+                return (
+                  <li key={st.id} className="flex items-center gap-2 rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    <input
+                      value={st.name}
+                      onChange={(e) =>
+                        updateNodeData(node.id, {
+                          states: (data.states ?? []).map((x) => (x.id === st.id ? { ...x, name: e.target.value } : x)),
+                        })
+                      }
+                      className="min-w-0 flex-1 bg-transparent text-gray-900 focus:outline-none dark:text-white"
+                    />
+                    <span className="shrink-0 text-gray-400 dark:text-gray-500">
+                      {(active ? data.cells ?? [] : st.cells).length} cells
+                    </span>
+                    <button
+                      onClick={() => {
+                        const states = data.states ?? [];
+                        const rest = states.filter((x) => x.id !== st.id);
+                        if (rest.length <= 1) {
+                          // One state left: drop snapshots, keep whichever content stays
+                          const keep = active ? rest[0]?.cells ?? data.cells : data.cells;
+                          updateNodeData(node.id, { states: undefined, activeStateId: undefined, showDiff: undefined, cells: keep });
+                        } else if (active) {
+                          const idx = states.findIndex((x) => x.id === st.id);
+                          const next = rest[Math.max(0, idx - 1)];
+                          updateNodeData(node.id, { states: rest, activeStateId: next.id, cells: next.cells });
+                        } else {
+                          updateNodeData(node.id, { states: rest });
+                        }
+                      }}
+                      title="Delete state"
+                      className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* Collapsed ranges */}
         <div>

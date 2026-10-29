@@ -1,10 +1,12 @@
-import { memo, useState, useMemo, lazy, Suspense } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { memo, useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
+import type { ReactNode, HTMLAttributes } from 'react';
+import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { Edit2, Check, FileCode } from 'lucide-react';
 import NodeHeader from './NodeHeader';
-import type { SourceCodeData, SourceLanguage } from '../../types';
+import type { SourceCodeData, SourceLanguage, TokenAnchor } from '../../types';
 import { ELLIPSIS_MARKER, findEllipsisIndices } from '../../utils/code';
+import { CODE_TAB_SIZE, visualCol, hitInRow, wordRangeAt, trimRange, anchorAt } from '../../utils/tokenAnchor';
 import { useGraphStore } from '../../store/graphStore';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -15,6 +17,49 @@ const MonacoEditor = lazy(() => import('@monaco-editor/react'));
 
 const DEFAULT_HIGHLIGHT = '#facc15';
 const NOTE_INLINE_MAX = 36;
+const ANCHOR_COLOR = '#6366f1';
+const HANDLE_STYLE = { background: '#6b7280', width: 7, height: 7 };
+const ANCHOR_HANDLE_STYLE = { background: ANCHOR_COLOR, width: 7, height: 7 };
+
+/**
+ * `<code>` replacement for SyntaxHighlighter that hosts word-anchor overlays.
+ * Overlays live inside the code element so `ch` units match the code font exactly.
+ * Defined at module scope so the component identity is stable across renders.
+ */
+function AnchoredCode({ children, overlay, style, ...rest }: HTMLAttributes<HTMLElement> & { overlay?: ReactNode }) {
+  return (
+    <code {...rest} style={{ ...style, position: 'relative', display: 'inline-block' }}>
+      {children}
+      {overlay}
+    </code>
+  );
+}
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+/** ⌘ on macOS (where Ctrl-click is a right-click), Ctrl elsewhere. */
+const pickModifier = (e: { metaKey: boolean; ctrlKey: boolean }) => (IS_MAC ? e.metaKey : e.ctrlKey);
+
+/** Track whether the pick modifier is held, which turns code lines into word pickers. */
+function useModifierHeld(enabled: boolean): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (!enabled) {
+      setHeld(false);
+      return;
+    }
+    const update = (e: KeyboardEvent) => setHeld(pickModifier(e));
+    const reset = () => setHeld(false);
+    window.addEventListener('keydown', update);
+    window.addEventListener('keyup', update);
+    window.addEventListener('blur', reset);
+    return () => {
+      window.removeEventListener('keydown', update);
+      window.removeEventListener('keyup', update);
+      window.removeEventListener('blur', reset);
+    };
+  }, [enabled]);
+  return held;
+}
 
 type Props = NodeProps & { data: SourceCodeData & { name?: string } };
 
@@ -93,8 +138,29 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const [noteEdit, setNoteEdit] = useState<{ line: number; text: string } | null>(null);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
+  const addTokenAnchor = useGraphStore((s) => s.addTokenAnchor);
+  const removeTokenAnchor = useGraphStore((s) => s.removeTokenAnchor);
+  const observerMode = useGraphStore((s) => s.observerMode);
   const edges = useGraphStore((s) => s.edges);
   const { theme } = useTheme();
+  const updateNodeInternals = useUpdateNodeInternals();
+  const modHeld = useModifierHeld(!observerMode && !isEditing);
+  // In-progress Ctrl/⌘-drag word selection
+  const [pick, setPick] = useState<{ line: number; from: number; to: number } | null>(null);
+  const pickRow = useRef<{ row: HTMLElement; codeEl: HTMLElement } | null>(null);
+  const codeAreaRef = useRef<HTMLDivElement>(null);
+
+  // React Flow's node drag starts on a native mousedown on the node element, before
+  // React's delegated handlers run — stop it natively so ⌘/Ctrl-drag picks text instead.
+  useEffect(() => {
+    const el = codeAreaRef.current;
+    if (!el || observerMode) return;
+    const stop = (e: MouseEvent) => {
+      if (pickModifier(e) && e.button === 0) e.stopPropagation();
+    };
+    el.addEventListener('mousedown', stop);
+    return () => el.removeEventListener('mousedown', stop);
+  }, [observerMode, isEditing, dragging]);
 
   const connectedHandles = useMemo(() => {
     const set = new Set<string>();
@@ -113,6 +179,102 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const lineNotes = data.lineNotes ?? [];
   const hlMap = new Map(highlights.map((h) => [h.line, h.color ?? DEFAULT_HIGHLIGHT]));
   const noteMap = new Map(lineNotes.map((n) => [n.line, n.text]));
+  const anchors = data.tokenAnchors ?? [];
+  const anchorsByLine = new Map<number, TokenAnchor[]>();
+  for (const a of anchors) anchorsByLine.set(a.line, [...(anchorsByLine.get(a.line) ?? []), a]);
+
+  // Anchor handles don't change the node's size, so React Flow must be told to re-measure
+  const anchorKey = anchors.map((a) => `${a.id}:${a.line}:${a.start}:${a.end}`).join('|');
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [anchorKey, data.code, isEditing, id, updateNodeInternals]);
+
+  const finishPick = (p: { line: number; from: number; to: number }, content: string) => {
+    if (p.from === p.to) {
+      const existing = anchorAt(anchors, p.line, p.from);
+      if (existing) {
+        removeTokenAnchor(id, existing.id);
+        return;
+      }
+      const word = wordRangeAt(content, p.from);
+      if (word) addTokenAnchor(id, { line: p.line, ...word });
+      return;
+    }
+    const range = trimRange(content, Math.min(p.from, p.to), Math.max(p.from, p.to) + 1);
+    if (range) addTokenAnchor(id, { line: p.line, ...range });
+  };
+
+  const onCodePointerDown = (e: React.PointerEvent) => {
+    if (!pickModifier(e) || e.button !== 0 || observerMode) return;
+    const row = (e.target as HTMLElement).closest('[data-line]') as HTMLElement | null;
+    const codeEl = row?.querySelector('code') as HTMLElement | null;
+    if (!row || !codeEl) return;
+    const hit = hitInRow(row, codeEl, e.clientX);
+    if (!hit) return;
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic / already-released pointers can't be captured; moves still bubble here
+    }
+    pickRow.current = { row, codeEl };
+    setPick({ line: hit.line, from: hit.index, to: hit.index });
+  };
+  const onCodePointerMove = (e: React.PointerEvent) => {
+    if (!pick || !pickRow.current) return;
+    const hit = hitInRow(pickRow.current.row, pickRow.current.codeEl, e.clientX);
+    if (hit && hit.index !== pick.to) setPick({ ...pick, to: hit.index });
+  };
+  const onCodePointerUp = (e: React.PointerEvent) => {
+    if (!pick || !pickRow.current) return;
+    e.stopPropagation();
+    finishPick(pick, pickRow.current.row.dataset.content ?? '');
+    pickRow.current = null;
+    setPick(null);
+  };
+
+  /** Overlay boxes + handles for every anchor on a line (rendered inside <code>). */
+  const renderLineOverlay = (num: number, content: string) => {
+    const lineAnchors = (anchorsByLine.get(num) ?? []).filter((a) => a.start < content.length);
+    const preview = pick && pick.line === num ? pick : null;
+    if (lineAnchors.length === 0 && !preview) return undefined;
+    const box = (start: number, end: number) => {
+      const left = visualCol(content, start);
+      return { left: `${left}ch`, width: `${visualCol(content, Math.min(end, content.length)) - left}ch` };
+    };
+    return (
+      <>
+        {lineAnchors.map((a) => {
+          const conn = (side: string) => (connectedHandles.has(`anchor-${a.id}-${side}`) ? 'anodi-connected' : undefined);
+          return (
+            <span
+              key={a.id}
+              data-anchor-id={a.id}
+              className="anodi-token-anchor absolute rounded-sm"
+              style={{ ...box(a.start, a.end), top: -3, bottom: -3, backgroundColor: `${ANCHOR_COLOR}22`, boxShadow: `inset 0 -2px 0 ${ANCHOR_COLOR}` }}
+              title={`Connection point: ${content.slice(a.start, a.end)} · Ctrl/⌘-click to remove`}
+            >
+              <Handle type="target" position={Position.Left} id={`anchor-${a.id}-left`} style={{ ...ANCHOR_HANDLE_STYLE, opacity: 0 }} />
+              <Handle type="source" position={Position.Left} id={`anchor-${a.id}-left`} className={conn('left')} style={ANCHOR_HANDLE_STYLE} />
+              <Handle type="target" position={Position.Right} id={`anchor-${a.id}-right`} style={{ ...ANCHOR_HANDLE_STYLE, opacity: 0 }} />
+              <Handle type="source" position={Position.Right} id={`anchor-${a.id}-right`} className={conn('right')} style={ANCHOR_HANDLE_STYLE} />
+            </span>
+          );
+        })}
+        {preview && (() => {
+          const r = { start: Math.min(preview.from, preview.to), end: Math.max(preview.from, preview.to) + 1 };
+          const range = preview.from === preview.to ? wordRangeAt(content, preview.from) ?? r : r;
+          return (
+            <span
+              className="pointer-events-none absolute rounded-sm"
+              style={{ ...box(range.start, range.end), top: -3, bottom: -3, backgroundColor: `${ANCHOR_COLOR}40`, outline: `1px dashed ${ANCHOR_COLOR}` }}
+            />
+          );
+        })()}
+      </>
+    );
+  };
 
   const toggleHighlight = (line: number) => {
     updateNodeData(id, {
@@ -189,7 +351,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           type="target"
           position={Position.Left}
           id={`line-${num}-left`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
+          style={{ top, transform: 'translateY(-50%)', ...HANDLE_STYLE, opacity: 0 }}
         />
       ))}
       {isEditing ? null : linePositions.map(({ num, top }) => (
@@ -199,7 +361,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           position={Position.Left}
           id={`line-${num}-left`}
           className={connectedHandles.has(`line-${num}-left`) ? 'anodi-connected' : undefined}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
+          style={{ top, transform: 'translateY(-50%)', ...HANDLE_STYLE }}
         />
       ))}
 
@@ -210,7 +372,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           type="target"
           position={Position.Right}
           id={`line-${num}-right`}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7, opacity: 0 }}
+          style={{ top, transform: 'translateY(-50%)', ...HANDLE_STYLE, opacity: 0 }}
         />
       ))}
       {isEditing ? null : linePositions.map(({ num, top }) => (
@@ -220,7 +382,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
           position={Position.Right}
           id={`line-${num}-right`}
           className={connectedHandles.has(`line-${num}-right`) ? 'anodi-connected' : undefined}
-          style={{ top, transform: 'translateY(-50%)', background: '#6b7280', width: 7, height: 7 }}
+          style={{ top, transform: 'translateY(-50%)', ...HANDLE_STYLE }}
         />
       ))}
 
@@ -340,7 +502,13 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         </div>
       ) : (
         /* ── View mode: Code lines ────────────────────────────────── */
-        <div className="anodi-export-data mx-1 mb-2 overflow-hidden rounded bg-gray-100 dark:bg-black/40">
+        <div
+          ref={codeAreaRef}
+          className={`anodi-export-data mx-1 mb-2 overflow-hidden rounded bg-gray-100 dark:bg-black/40 ${modHeld || pick ? 'nodrag nopan cursor-text' : ''}`}
+          onPointerDown={onCodePointerDown}
+          onPointerMove={onCodePointerMove}
+          onPointerUp={onCodePointerUp}
+        >
           {items.length === 0 && (
             <div
               className="flex items-center px-2 text-xs italic text-gray-500"
@@ -369,6 +537,8 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
             return (
               <div
                 key={`line-${item.num}-${idx}`}
+                data-line={item.num}
+                data-content={item.content}
                 className="relative flex items-center gap-2 px-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/30"
                 style={{ height: LINE_H, ...(hl ? { backgroundColor: `${hl}33` } : {}) }}
                 title={note}
@@ -393,15 +563,19 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                       backgroundColor: 'transparent',
                       margin: '0',
                       lineHeight: '1',
-                      background: 'transparent'
+                      background: 'transparent',
+                      tabSize: CODE_TAB_SIZE,
                     }}
+                    CodeTag={AnchoredCode}
                     codeTagProps={{
                       style: {
                         fontFamily: 'monospace',
                         lineHeight: '1',
-                        background: 'transparent'
+                        background: 'transparent',
+                        tabSize: CODE_TAB_SIZE,
                       },
-                    }}
+                      overlay: renderLineOverlay(item.num, item.content),
+                    } as HTMLAttributes<HTMLElement>}
                   >
                     {item.content}
                   </SyntaxHighlighter>

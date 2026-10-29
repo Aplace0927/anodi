@@ -1,11 +1,11 @@
-import { memo, useState, useMemo } from "react";
+import { memo, useState, useMemo, useEffect, useRef } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { Edit2, Check, Plus, Trash2, MemoryStick, Upload } from "lucide-react";
-import type { MemoryLayoutData, MemoryCell } from "../../types";
+import { Edit2, Check, Plus, Trash2, MemoryStick, Upload, ChevronRight, ChevronDown, ListTree } from "lucide-react";
+import type { MemoryLayoutData, MemoryCell, MemoryState } from "../../types";
+import { toast } from "../../store/toastStore";
 import { useGraphStore } from "../../store/graphStore";
 import { v4 } from "../../utils/uuid";
-import { contrastTextColor } from "../ColorPicker";
 import {
   MEMORY_THRESHOLD,
   MEMORY_LINES,
@@ -16,9 +16,24 @@ import {
   numberCellMetaLabel,
   buildByteMap,
   buildRowItems,
+  rawByteMap,
+  visibleCells,
+  cellTreeOrder,
+  hasChildren,
+  removeCellTree,
+  placeCell,
+  carveRange,
+  diffBytes,
+  resolvePointerTarget,
+  pointerTargetLabel,
 } from "../../utils/memory";
-import CellForm from "./memory/CellForm";
+import type { ByteAnnotation } from "../../utils/memory";
+import NodeHeader from "./NodeHeader";
+import CellForm, { CELL_TYPE_COLORS } from "./memory/CellForm";
 import ImportPanel from "./memory/ImportPanel";
+import type { Tab as ImportTab } from "./memory/ImportPanel";
+import InspectorPanel from "./memory/InspectorPanel";
+import StateBar from "./memory/StateBar";
 
 export { MEMORY_THRESHOLD, MEMORY_LINES, cellByteSize };
 
@@ -42,6 +57,29 @@ function addrColWidth(padLen: number): number {
   // "0x" prefix (2 chars) + padLen hex digits, each ~6px at mono 9px font, plus 12px padding
   return Math.max(ADDR_COL_W_BASE, (padLen + 2) * 6 + 12);
 }
+
+/** Field label in the annotation column: arrays as name[n], ▸ when folded. */
+function fieldLabel(cell: MemoryCell, folded: boolean): string {
+  const name = cell.fieldName ?? "field";
+  const arr = cell.elemSize ? `[${Math.round((cell.fieldSize ?? 0) / cell.elemSize)}]` : "";
+  return `${folded ? "▸ " : ""}${name}${arr}`;
+}
+
+/** Pointer cell value as a number (-1 when unparsable). */
+function ptrAddr(v: string | undefined): number {
+  try {
+    return Number(BigInt(v || "0"));
+  } catch {
+    return -1;
+  }
+}
+
+const BYTE_TONE: Record<"hex" | "text" | "number" | "pointer", string> = {
+  hex: "text-amber-300",
+  text: "text-cyan-300",
+  number: "text-green-700 dark:text-green-300",
+  pointer: "text-pink-500 dark:text-pink-300",
+};
 // ── Main component ─────────────────────────────────────────────────
 
 const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
@@ -49,6 +87,10 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [importInit, setImportInit] = useState<{ tab: ImportTab; start?: string; length?: number } | null>(null);
+  // Byte selection (anchor = where the drag started)
+  const [sel, setSel] = useState<{ anchor: number; focus: number } | null>(null);
+  const selecting = useRef(false);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const edges = useGraphStore((s) => s.edges);
 
@@ -65,7 +107,6 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const base = parseHexAddr(data.baseAddress ?? "0x0000");
   const end = parseHexAddr(data.endAddress ?? "0x0000");
   const customColor = data.nodeColor;
-  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
   const padLen = Math.max(4, end.toString(16).length);
   const addrW = addrColWidth(padLen);
   const viewMinWidth =
@@ -81,7 +122,56 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     data.collapsedRanges ?? [],
   );
 
-  const byteMap = dragging ? new Map() : buildByteMap(cells);
+  const endianness = data.defaultEndianness ?? "little";
+  const pointerSize = data.pointerSize ?? 8;
+  const shown = useMemo(() => visibleCells(cells), [cells]);
+  // Hex column: concrete bytes win over fields. Annotation column: innermost field.
+  const byteMap = useMemo(
+    () =>
+      dragging
+        ? new Map<number, ByteAnnotation>()
+        : buildByteMap([...shown.filter((c) => c.type !== "field"), ...shown.filter((c) => c.type === "field")]),
+    [dragging, shown],
+  );
+  const fieldMap = useMemo(
+    () => (dragging ? new Map<number, ByteAnnotation>() : buildByteMap(shown.filter((c) => c.type === "field"))),
+    [dragging, shown],
+  );
+  const rawBytes = useMemo(() => rawByteMap(cells), [cells]);
+  const cellById = useMemo(() => new Map(cells.map((c) => [c.id, c])), [cells]);
+
+  // Snapshots: the active state's live content is `cells`
+  const states = data.states ?? [];
+  const activeIdx = states.findIndex((st) => st.id === data.activeStateId);
+  const prevState = activeIdx > 0 ? states[activeIdx - 1] : undefined;
+  const diffSet = useMemo(
+    () => (data.showDiff && prevState ? diffBytes(cells, prevState.cells) : null),
+    [data.showDiff, prevState, cells],
+  );
+
+  const selRange: [number, number] | null = sel
+    ? [Math.min(sel.anchor, sel.focus), Math.max(sel.anchor, sel.focus) + 1]
+    : null;
+
+  useEffect(() => {
+    const up = () => {
+      selecting.current = false;
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
+
+  useEffect(() => {
+    if (!sel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSel(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sel]);
+
+  const describePointer = (addr: number) =>
+    pointerTargetLabel(resolvePointerTarget(useGraphStore.getState().nodes, addr, id));
 
   // Stable field colour index (by insertion order)
   const fieldColorMap = new Map<string, number>();
@@ -111,127 +201,179 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     }
   }
 
-  const addCell = (partial: Omit<MemoryCell, "id">) => {
-    updateNodeData(id, { cells: [...cells, { id: v4(), ...partial }] });
+  const setCells = (next: MemoryCell[]) => updateNodeData(id, { cells: next });
+
+  const removeCell = (cellId: string) => setCells(removeCellTree(cells, cellId));
+
+  const patchCell = (cellId: string, patch: Partial<MemoryCell>) =>
+    setCells(cells.map((c) => (c.id === cellId ? { ...c, ...patch } : c)));
+
+  /** Split an array field into one child field per element. */
+  const splitArray = (cell: MemoryCell) => {
+    if (!cell.elemSize) return;
+    const start = parseHexAddr(cell.address);
+    const n = Math.round((cell.fieldSize ?? 0) / cell.elemSize);
+    const name = (cell.fieldName ?? "field").replace(/\[.*$/, "");
+    const kids: MemoryCell[] = Array.from({ length: n }, (_, i) => ({
+      id: v4(),
+      type: "field",
+      address: fmtHex(start + i * cell.elemSize!, padLen),
+      fieldName: `${name}[${i}]`,
+      fieldSize: cell.elemSize,
+      fieldColor: cell.fieldColor,
+      parentId: cell.id,
+    }));
+    setCells([...cells.map((c) => (c.id === cell.id ? { ...c, collapsed: false } : c)), ...kids]);
+  };
+
+  /** Create a cell from the byte selection, splitting/nesting existing content. */
+  const createFromSelection = (partial: Omit<MemoryCell, "id">) => {
+    const s = parseHexAddr(partial.address);
+    const e = s + cellByteSize(partial);
+    const carved = carveRange(cells, s, e, v4, padLen, partial.type === "field");
+    const next = placeCell(carved, { ...partial, id: v4() });
+    if (!next) {
+      toast.error("Selection partially overlaps an existing field.");
+      return;
+    }
+    setCells(next);
+    setSel(null);
+  };
+
+  const openImport = (init: { tab: ImportTab; start?: string; length?: number } | null) => {
+    setIsEditing(true);
     setShowAddForm(false);
-  };
-
-  const updateCell = (cellId: string, updatedData: Omit<MemoryCell, "id">) => {
-    const updatedCells = cells.map((c) =>
-      c.id === cellId ? { ...c, ...updatedData } : c,
-    );
-
-    updateNodeData(id, { cells: updatedCells });
     setEditingCellId(null);
+    setImportInit(init);
+    setShowImport(true);
   };
 
-  const removeCell = (cellId: string) => {
-    updateNodeData(id, { cells: cells.filter((c) => c.id !== cellId) });
+  // ── Snapshots ─────────────────────────────────────────────────
+  const syncedStates = (): MemoryState[] =>
+    states.map((st) => (st.id === data.activeStateId ? { ...st, cells } : st));
+
+  const addState = () => {
+    const copy = { id: v4(), name: `State ${Math.max(states.length, 1) + 1}`, cells: cells.map((c) => ({ ...c })) };
+    const base = states.length === 0 ? [{ id: v4(), name: "State 1", cells }] : syncedStates();
+    updateNodeData(id, { states: [...base, copy], activeStateId: copy.id });
   };
 
-  const sortedCells = useMemo(
-    () => [...cells].sort((a, b) => parseHexAddr(a.address) - parseHexAddr(b.address)),
-    [cells],
-  );
+  const switchState = (stateId: string) => {
+    if (stateId === data.activeStateId) return;
+    const synced = syncedStates();
+    const target = synced.find((st) => st.id === stateId);
+    if (!target) return;
+    setSel(null);
+    setEditingCellId(null);
+    updateNodeData(id, { states: synced, activeStateId: stateId, cells: target.cells });
+  };
+
+  const tree = useMemo(() => {
+    const ordered = cellTreeOrder(cells);
+    // Hide rows under folded parents
+    const hidden = new Set<string>();
+    return ordered.filter(({ cell }) => {
+      if (cell.parentId && hidden.has(cell.parentId)) {
+        hidden.add(cell.id);
+        return false;
+      }
+      if (cell.collapsed) hidden.add(cell.id);
+      return true;
+    });
+  }, [cells]);
 
   // ── Render one byte cell in the hex area ───────────────────────
 
   const renderByteCell = (byteAddr: number) => {
     const ann = byteMap.get(byteAddr);
+    const inSel = !!selRange && byteAddr >= selRange[0] && byteAddr < selRange[1];
+    const changed = !!diffSet?.has(byteAddr);
+    const overlay = `${inSel ? "ring-1 ring-inset ring-indigo-500 bg-indigo-500/25" : ""} ${changed ? "bg-rose-500/30" : ""}`;
+    const base = "inline-block w-[18px] text-center font-mono text-xs";
+    const changedNote = changed ? ` · changed since ${prevState?.name}` : "";
 
     if (!ann) {
       return (
-        <span
-          key={byteAddr}
-          className="inline-block w-[18px] text-center font-mono text-xs text-gray-700"
-        >
+        <span key={byteAddr} data-addr={byteAddr} className={`${base} text-gray-700 ${overlay}`} title={changed ? `removed${changedNote}` : undefined}>
           --
         </span>
       );
     }
 
-    if (ann.type === "hex") {
-      const cell = cells.find((c) => c.id === ann.cellId);
-      const customColor = cell?.fieldColor;
-      return (
-        <span
-          key={byteAddr}
-          className={`inline-block w-[18px] text-center font-mono text-xs ${customColor ? "" : "text-amber-300"}`}
-          style={customColor ? { color: customColor } : undefined}
-          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (hex)`}
-        >
-          {ann.value.toString(16).toUpperCase().padStart(2, "0")}
-        </span>
-      );
-    }
+    const cell = cellById.get(ann.cellId);
+    const customColor = cell?.fieldColor;
 
-    if (ann.type === "text") {
-      const cell = cells.find((c) => c.id === ann.cellId);
-      const customColor = cell?.fieldColor;
+    if (ann.type !== "field") {
+      const hx = ann.value.toString(16).toUpperCase().padStart(2, "0");
+      const detail =
+        ann.type === "text"
+          ? `text "${ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : "."}"`
+          : ann.type === "pointer"
+            ? `pointer → ${describePointer(ptrAddr(cell?.value))}`
+            : ann.type;
+      // Bytes inside a field get an underline in the field's color
+      const owner = fieldMap.get(byteAddr);
+      const ownerCell = owner ? cellById.get(owner.cellId) : undefined;
+      const ownerCol = owner ? FIELD_COLORS[fieldColorMap.get(owner.cellId) ?? 0] : undefined;
       return (
         <span
           key={byteAddr}
-          className={`inline-block w-[18px] text-center font-mono text-xs ${customColor ? "" : "text-cyan-300"}`}
-          style={customColor ? { color: customColor } : undefined}
-          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (text "${ann.value >= 0x20 && ann.value < 0x7f ? String.fromCharCode(ann.value) : "."}")`}
+          data-addr={byteAddr}
+          className={`${base} ${customColor ? "" : BYTE_TONE[ann.type]} ${owner ? `border-b-2 ${ownerCell?.fieldColor ? "" : ownerCol?.border}` : ""} ${overlay}`}
+          style={{
+            ...(customColor ? { color: customColor } : {}),
+            ...(ownerCell?.fieldColor ? { borderColor: ownerCell.fieldColor } : {}),
+          }}
+          title={`0x${hx} (${detail})${owner ? ` in ${owner.fieldName ?? "field"} +${byteAddr - (owner.fieldStartAddr ?? 0)}` : ""}${changedNote}`}
         >
-          {ann.value.toString(16).toUpperCase().padStart(2, "0")}
-        </span>
-      );
-    }
-
-    if (ann.type === "number") {
-      const cell = cells.find((c) => c.id === ann.cellId);
-      const customColor = cell?.fieldColor;
-      return (
-        <span
-          key={byteAddr}
-          className={`inline-block w-[18px] text-center font-mono text-xs ${customColor ? "" : "text-green-700 dark:text-green-300"}`}
-          style={customColor ? { color: customColor } : undefined}
-          title={`0x${ann.value.toString(16).toUpperCase().padStart(2, "0")} (number)`}
-        >
-          {ann.value.toString(16).toUpperCase().padStart(2, "0")}
+          {hx}
         </span>
       );
     }
 
     // ── field type: draw a "long line" style border ─────────
-
-    const cell = cells.find((c) => c.id === ann.cellId);
-    const customFieldColor = cell?.fieldColor;
     const col = FIELD_COLORS[fieldColorMap.get(ann.cellId) ?? 0];
     const fieldStart = ann.fieldStartAddr ?? 0;
-    const borderT = "border-t-2";
-    const borderB = "border-b-2";
-    const borderL = ann.isFirst ? "border-l-2" : "";
-    const borderR = ann.isLast ? "border-r-2" : "";
-
-    if (customFieldColor) {
-      return (
-        <span
-          key={byteAddr}
-          className={`inline-block w-[18px] h-[18px] text-center font-mono text-xs ${borderT} ${borderB} ${borderL} ${borderR}`}
-          style={{
-            backgroundColor: `${customFieldColor}33`,
-            color: customFieldColor,
-            borderColor: customFieldColor,
-          }}
-          title={`${ann.fieldName ?? "field"} (+${byteAddr - fieldStart})`}
-        >
-          {ann.isFirst ? "▶" : ""}
-        </span>
-      );
-    }
+    const rel = byteAddr - fieldStart;
+    const elemEdge = !!cell?.elemSize && !ann.isFirst && rel % cell.elemSize === 0;
+    const borders = `border-t-2 border-b-2 ${ann.isFirst ? "border-l-2" : elemEdge ? "border-l" : ""} ${ann.isLast ? "border-r-2" : ""}`;
+    const title = `${ann.fieldName ?? "field"} (+${rel}${cell?.elemSize ? `, [${Math.floor(rel / cell.elemSize)}]` : ""})${changedNote}`;
 
     return (
       <span
         key={byteAddr}
-        className={`inline-block w-[18px] h-[18px] text-center font-mono text-xs ${col.bg} ${col.text} ${col.border} ${borderT} ${borderB} ${borderL} ${borderR}`}
-        title={`${ann.fieldName ?? "field"} (+${byteAddr - fieldStart})`}
+        data-addr={byteAddr}
+        className={`${base} h-[18px] ${customColor ? "" : `${col.bg} ${col.text} ${col.border}`} ${borders} ${overlay}`}
+        style={customColor ? { backgroundColor: `${customColor}33`, color: customColor, borderColor: customColor } : undefined}
+        title={title}
       >
         {ann.isFirst ? "▶" : ""}
       </span>
     );
+  };
+
+  const addrFromEvent = (e: React.MouseEvent): number | null => {
+    const el = (e.target as HTMLElement).closest("[data-addr]");
+    return el ? Number(el.getAttribute("data-addr")) : null;
+  };
+
+  const onBytesMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const addr = addrFromEvent(e);
+    if (addr === null) return;
+    e.stopPropagation();
+    selecting.current = true;
+    if (e.shiftKey && sel) setSel({ anchor: sel.anchor, focus: addr });
+    else if (sel && sel.anchor === addr && sel.focus === addr) {
+      setSel(null);
+      selecting.current = false;
+    } else setSel({ anchor: addr, focus: addr });
+  };
+
+  const onBytesMouseOver = (e: React.MouseEvent) => {
+    if (!selecting.current) return;
+    const addr = addrFromEvent(e);
+    if (addr !== null && sel && addr !== sel.focus) setSel({ anchor: sel.anchor, focus: addr });
   };
 
   // ── Render annotation column (right of │) ─────────────────────
@@ -252,9 +394,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
     } | null = null;
 
     for (let addr = rowAddr; addr < rowEndAddr; addr++) {
-      const ann = byteMap.get(addr);
-
-      const fieldId = ann?.type === "field" ? ann.cellId : null;
+      const fieldId = fieldMap.get(addr)?.cellId ?? null;
 
       if (!currentSegment) {
         currentSegment = { fieldId, length: 1, startAddr: addr };
@@ -291,7 +431,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                     const addr = seg.startAddr + j;
                     const ann = byteMap.get(addr);
                     let ch = ".";
-                    if (ann && (ann.type === "hex" || ann.type === "text" || ann.type === "number")) {
+                    if (ann && ann.type !== "field") {
                       ch = ann.value >= 0x20 && ann.value < 0x7f
                         ? String.fromCharCode(ann.value)
                         : ".";
@@ -310,9 +450,10 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               );
             }
 
-            const cell = cells.find((c) => c.id === seg.fieldId);
+            const cell = cellById.get(seg.fieldId);
 
             if (!cell || cell.type !== "field") return null;
+            const label = fieldLabel(cell, !!cell.collapsed && hasChildren(cells, cell.id));
             const s = parseHexAddr(cell.address);
             const e = s + (cell.fieldSize ?? 1);
 
@@ -361,7 +502,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                         className="w-full truncate text-center text-xs font-bold"
                         style={{ color: customFieldColor }}
                       >
-                        {cell.fieldName}
+                        {label}
                       </span>
                     )}
                 </div>
@@ -387,7 +528,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                     <span
                       className={`w-full truncate text-center text-xs font-bold ${col.text}`}
                     >
-                      {cell.fieldName}
+                      {label}
                     </span>
                   )}
               </div>
@@ -407,7 +548,7 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
       if (!ann) {
         chars.push(".");
-      } else if (ann.type === "hex" || ann.type === "text" || ann.type === "number") {
+      } else if (ann.type !== "field") {
         chars.push(
           ann.value >= 0x20 && ann.value < 0x7f
             ? String.fromCharCode(ann.value)
@@ -440,14 +581,14 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
   return (
     <div
-      className={`anodi-export-node font-mono rounded-lg border-2 bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-lg transition-all ${
+      className={`anodi-export-node group/mem font-mono rounded-lg border-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-lg transition-all ${
         selected
           ? customColor
             ? "shadow-lg"
-            : "border-orange-400 shadow-orange-400/30 shadow-lg"
+            : "border-indigo-400 shadow-indigo-400/40 shadow-lg"
           : customColor
             ? ""
-            : "border-gray-300 dark:border-gray-700"
+            : "border-gray-300 dark:border-gray-600"
       }`}
       style={{
         minWidth: isEditing ? Math.max(340, viewMinWidth) : viewMinWidth,
@@ -532,65 +673,63 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
       {/* Header */}
 
-      <div
-        className={`anodi-export-data flex items-center rounded-t-lg px-3 ${customColor ? '' : 'bg-orange-800'}`}
-        style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
-      >
-        <MemoryStick
-          size={14}
-          className={`mr-2 shrink-0 ${headerTextColor ? '' : 'text-orange-200'}`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-        />
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div
-            className={`truncate font-mono font-bold text-sm ${headerTextColor ? '' : 'text-orange-50'}`}
-            style={headerTextColor ? { color: headerTextColor } : undefined}
-          >
-            {data.name ?? "Untitled"}
-          </div>
-          <div
-            className={`truncate text-xs ${headerTextColor ? '' : 'text-orange-300'}`}
-            style={headerTextColor ? { color: headerTextColor } : undefined}
-          >
-            <span className="font-mono">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
-            {isAutoCollapsed ? " · auto-collapsed" : " "} · {" "}
-            {unitSize}B
-          </div>
-        </div>
-
-        <button
-          className={`nodrag shrink-0 p-0.5 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-          title="Import hexdump / binary / C struct"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsEditing(true);
-            setShowAddForm(false);
-            setEditingCellId(null);
-            setShowImport((v) => !v);
-          }}
-        >
-          <Upload size={13} />
-        </button>
-        <button
-          className={`shrink-0 p-0.5 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-          title={isEditing ? "Done editing" : "Edit content"}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsEditing((v) => !v);
-            setShowAddForm(false);
-            setShowImport(false);
-            setEditingCellId(null);
-          }}
-        >
-          {isEditing ? <Check size={13} /> : <Edit2 size={13} />}
-        </button>
-      </div>
+      <NodeHeader
+        kind="memory"
+        icon={MemoryStick}
+        name={data.name ?? "Untitled"}
+        nodeColor={customColor}
+        height={HEADER_H}
+        mono
+        subtitle={
+          <>
+            <span className="font-mono">{data.baseAddress ?? "?"} – {data.endAddress ?? "?"}</span>
+            {isAutoCollapsed ? " · auto-collapsed" : ""} · {unitSize}B
+          </>
+        }
+        actions={
+          <>
+            <button
+              className="nodrag opacity-70 hover:opacity-100"
+              title="Import hexdump / binary / C struct"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (showImport) setShowImport(false);
+                else openImport(null);
+              }}
+            >
+              <Upload size={13} />
+            </button>
+            <button
+              className="nodrag opacity-70 hover:opacity-100"
+              title={isEditing ? "Done editing" : "Edit content"}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditing((v) => !v);
+                setShowAddForm(false);
+                setShowImport(false);
+                setEditingCellId(null);
+              }}
+            >
+              {isEditing ? <Check size={13} /> : <Edit2 size={13} />}
+            </button>
+          </>
+        }
+      />
 
       {/* Badge */}
 
-      <div className="flex items-center px-2" style={{ height: BADGE_H }}></div>
+      <div className="flex items-center px-2" style={{ height: BADGE_H }}>
+        {!dragging && (
+          <StateBar
+            states={states}
+            activeId={data.activeStateId}
+            showDiff={!!data.showDiff}
+            onSwitch={switchState}
+            onAdd={addState}
+            onToggleDiff={() => updateNodeData(id, { showDiff: !data.showDiff })}
+          />
+        )}
+      </div>
 
       {dragging ? (
         /* ── Drag mode: lightweight placeholder ───────────────────── */
@@ -649,7 +788,11 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
               {/* Byte cells */}
 
-              <div className="flex shrink-0 gap-px">
+              <div
+                className="nodrag flex shrink-0 cursor-cell select-none gap-px"
+                onMouseDown={onBytesMouseDown}
+                onMouseOver={onBytesMouseOver}
+              >
                 {Array.from({ length: unitSize }, (_, i) =>
                   renderByteCell(item.addr + i),
                 )}
@@ -670,7 +813,8 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
 
               {isEditing &&
                 (() => {
-                  const startingCell = cells.find((c) => {
+                  // Deepest visible cell starting in this row
+                  const startingCell = shown.find((c) => {
                     const a = parseHexAddr(c.address);
 
                     return a >= item.addr && a < item.addr + unitSize;
@@ -699,6 +843,24 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
         })}
       </div>
 
+      {selRange && (
+        <InspectorPanel
+          key={`${selRange[0]}-${selRange[1]}`}
+          start={selRange[0]}
+          end={selRange[1]}
+          rawBytes={rawBytes}
+          padLen={padLen}
+          defaultEndianness={endianness}
+          pointerSize={pointerSize}
+          describePointer={describePointer}
+          onCreate={createFromSelection}
+          onFill={() =>
+            openImport({ tab: "fill", start: fmtHex(selRange[0], padLen), length: selRange[1] - selRange[0] })
+          }
+          onClose={() => setSel(null)}
+        />
+      )}
+
       {/* Edit mode panel */}
 
       {isEditing && (
@@ -708,57 +870,117 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
           onWheel={(e) => e.stopPropagation()}
         >
           {cells.length > 0 && (
-            <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/60 px-2 py-1">
-              <span className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
-                Content ({cells.length})
-              </span>
+            <div className="rounded-md border border-gray-200 bg-white p-1 font-sans shadow-sm dark:border-gray-700 dark:bg-gray-900">
+              <div className="flex items-center justify-between px-1 pb-1 pt-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Content
+                </span>
+                <span className="rounded bg-gray-100 px-1.5 text-[10px] font-bold text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {cells.length}
+                </span>
+              </div>
 
-              {sortedCells.map((c) => (
+              {tree.map(({ cell: c, depth }) => {
+                const kids = hasChildren(cells, c.id);
+                const isPtr = c.type === "pointer";
+                const meta =
+                  c.type === "number" || c.type === "integer"
+                    ? numberCellMetaLabel(c)
+                    : isPtr
+                      ? `ptr${(c.pointerSize ?? 8) * 8}`
+                      : c.type === "field" && c.elemSize
+                        ? `${Math.round((c.fieldSize ?? 0) / c.elemSize)}×${c.elemSize}B`
+                        : `${cellByteSize(c)}B`;
+                return (
                 <div key={c.id}>
                   {editingCellId === c.id ? (
                     <CellForm
                       cells={cells}
                       unitSize={unitSize}
                       padLen={padLen}
-                      onSave={(data) => updateCell(c.id, data)}
+                      range={{ start: base, end }}
+                      defaultEndianness={endianness}
+                      pointerSize={pointerSize}
+                      describePointer={describePointer}
+                      onSave={(next) => {
+                        setCells(next);
+                        setEditingCellId(null);
+                      }}
                       onCancel={() => setEditingCellId(null)}
                       cellToEdit={c}
                     />
                   ) : (
                     <div
-                      className="flex items-center gap-1 py-0.5 text-xs cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded px-1"
+                      className="group/cell flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
+                      style={{ paddingLeft: 4 + depth * 10 }}
                       onClick={() => setEditingCellId(c.id)}
+                      title="Click to edit"
                     >
-                      <span className="w-5 shrink-0 rounded bg-gray-200 dark:bg-gray-700 px-0.5 text-center font-mono text-xs text-gray-700 dark:text-gray-300">
-                        {c.type === "hex" ? "H" : c.type === "text" ? "T" : (c.type === "number" || c.type === "integer") ? "N" : "F"}
+                      {kids ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            patchCell(c.id, { collapsed: !c.collapsed });
+                          }}
+                          title={c.collapsed ? "Expand" : "Collapse"}
+                          className="-ml-1 shrink-0 text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-white"
+                        >
+                          {c.collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                        </button>
+                      ) : (
+                        <span
+                          className="h-3 w-1 shrink-0 rounded-full"
+                          style={{ backgroundColor: c.fieldColor ?? CELL_TYPE_COLORS[c.type] }}
+                        />
+                      )}
+                      <span className="w-11 shrink-0 text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">
+                        {c.type === "integer" ? "number" : c.type === "pointer" ? "ptr" : c.type}
                       </span>
 
-                      <span className="font-mono text-green-700 dark:text-green-300">
+                      <span className="shrink-0 font-mono text-green-700 dark:text-green-300">
                         {fmtHex(parseHexAddr(c.address), padLen)}
                       </span>
 
-                      <span className="flex-1 truncate text-gray-700 dark:text-gray-300">
-                        {c.type === "field"
-                          ? `${c.fieldName} (${c.fieldSize}B)`
-                          : c.type === "number" || c.type === "integer"
-                            ? `${c.value} (${numberCellMetaLabel(c)})`
-                            : `${c.value} (${cellByteSize(c)}B)`}
+                      <span className="min-w-0 flex-1 truncate font-mono text-gray-700 dark:text-gray-300">
+                        {c.type === "field" ? fieldLabel(c, false) : c.value}
+                        {isPtr && (
+                          <span className="text-pink-600 dark:text-pink-300">
+                            {" → "}
+                            {describePointer(ptrAddr(c.value))}
+                          </span>
+                        )}
                       </span>
+
+                      <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">{meta}</span>
+
+                      {c.type === "field" && c.elemSize && !kids && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            splitArray(c);
+                          }}
+                          title="Split into element fields"
+                          className="shrink-0 text-gray-400 opacity-0 hover:text-indigo-500 group-hover/cell:opacity-100 dark:text-gray-500 dark:hover:text-indigo-300"
+                        >
+                          <ListTree size={11} />
+                        </button>
+                      )}
 
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-
                           removeCell(c.id);
                         }}
-                        className="shrink-0 text-gray-500 hover:text-red-400"
+                        title={kids ? "Remove (with nested content)" : "Remove"}
+                        className="shrink-0 text-gray-400 opacity-0 hover:text-red-500 group-hover/cell:opacity-100 dark:text-gray-500 dark:hover:text-red-400"
                       >
-                        <Trash2 size={10} />
+                        <Trash2 size={11} />
                       </button>
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -766,11 +988,17 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             <ImportPanel
               baseAddress={data.baseAddress ?? "0x0000"}
               endAddress={data.endAddress ?? "0x0000"}
+              key={JSON.stringify(importInit)}
               unitSize={unitSize}
               cells={cells}
+              defaultEndianness={endianness}
+              initialTab={importInit?.tab}
+              initialStart={importInit?.start}
+              initialLength={importInit?.length}
               onApply={(next) => {
-                updateNodeData(id, { cells: next });
+                setCells(next);
                 setShowImport(false);
+                setSel(null);
               }}
               onClose={() => setShowImport(false)}
             />
@@ -781,7 +1009,14 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               cells={cells}
               unitSize={unitSize}
               padLen={padLen}
-              onSave={addCell}
+              range={{ start: base, end }}
+              defaultEndianness={endianness}
+              pointerSize={pointerSize}
+              describePointer={describePointer}
+              onSave={(next) => {
+                setCells(next);
+                setShowAddForm(false);
+              }}
               onCancel={() => setShowAddForm(false)}
             />
           ) : (
@@ -791,19 +1026,19 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
                   e.stopPropagation();
                   setShowAddForm(true);
                 }}
-                className="flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
+                className="flex flex-1 items-center justify-center gap-1 rounded-md border border-dashed border-gray-300 py-1 font-sans text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               >
-                <Plus size={10} /> Add content
+                <Plus size={12} /> Add content
               </button>
               {!showImport && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowImport(true);
+                    openImport(null);
                   }}
-                  className="flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
+                  className="flex flex-1 items-center justify-center gap-1 rounded-md border border-dashed border-gray-300 py-1 font-sans text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
                 >
-                  <Upload size={10} /> Import
+                  <Upload size={12} /> Import
                 </button>
               )}
             </div>

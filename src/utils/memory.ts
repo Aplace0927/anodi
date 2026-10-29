@@ -4,6 +4,8 @@ import type {
   IntegerSize,
   Endianness,
   MemoryNumberKind,
+  MemoryLayoutData,
+  AnodiNode,
 } from "../types";
 
 // ── Global settings ────────────────────────────────────────────────
@@ -180,9 +182,10 @@ export function numberCellMetaLabel(cell: MemoryCell): string {
 }
 
 export function cellByteSize(
-  cell: Pick<MemoryCell, "type" | "value" | "fieldSize" | "integerSize" | "numberKind">,
+  cell: Pick<MemoryCell, "type" | "value" | "fieldSize" | "integerSize" | "numberKind" | "pointerSize">,
 ): number {
   if (cell.type === "field") return cell.fieldSize ?? 1;
+  if (cell.type === "pointer") return cell.pointerSize ?? 8;
   if (cell.type === "number") return numberKindSize(cell.numberKind ?? "int32_t");
   if (cell.type === "integer") return cell.integerSize ?? 4;
   if (cell.type === "hex")
@@ -194,7 +197,7 @@ export function cellByteSize(
 
 export interface ByteAnnotation {
   value: number;
-  type: "hex" | "text" | "field" | "number";
+  type: "hex" | "text" | "field" | "number" | "pointer";
   cellId: string;
   isFirst: boolean;
   isLast: boolean;
@@ -203,37 +206,36 @@ export interface ByteAnnotation {
   fieldEndAddr?: number; // exclusive
 }
 
+/** Encoded bytes of a byte-carrying cell; null for fields. */
+export function cellBytes(cell: MemoryCell): number[] | null {
+  switch (cell.type) {
+    case "hex":
+      return parseHexBytes(cell.value ?? "");
+    case "text":
+      return textToBytes(cell.value ?? "");
+    case "number":
+    case "integer":
+      return numberToBytes(
+        cell.value ?? "0",
+        getCellNumberKind(cell),
+        cell.endianness ?? "little",
+        getCellNumberSigned(cell),
+      );
+    case "pointer":
+      return integerToBytes(cell.value ?? "0", cell.pointerSize ?? 8, cell.endianness ?? "little", false);
+    default:
+      return null;
+  }
+}
+
+/** First cell claiming a byte wins — pass `visibleCells()` so nested cells take precedence. */
 export function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
   const map = new Map<number, ByteAnnotation>();
 
   for (const cell of cells) {
     const startAddr = parseHexAddr(cell.address);
 
-    if (cell.type === "hex") {
-      const bytes = parseHexBytes(cell.value ?? "");
-      bytes.forEach((b, i) => {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: b,
-            type: "hex",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === bytes.length - 1,
-          });
-      });
-    } else if (cell.type === "text") {
-      const bytes = textToBytes(cell.value ?? "");
-      bytes.forEach((b, i) => {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: b,
-            type: "text",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === bytes.length - 1,
-          });
-      });
-    } else if (cell.type === "field") {
+    if (cell.type === "field") {
       const size = cell.fieldSize ?? 1;
       for (let i = 0; i < size; i++) {
         if (!map.has(startAddr + i))
@@ -248,25 +250,264 @@ export function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
             fieldEndAddr: startAddr + size,
           });
       }
-    } else if (cell.type === "number" || cell.type === "integer") {
-      const numberKind = getCellNumberKind(cell);
-      const signed = getCellNumberSigned(cell);
-      const endianness = cell.endianness ?? "little";
-      const bytes = numberToBytes(cell.value ?? "0", numberKind, endianness, signed);
-      bytes.forEach((b, i) => {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: b,
-            type: "number",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === bytes.length - 1,
-          });
-      });
+      continue;
     }
+
+    const bytes = cellBytes(cell) ?? [];
+    const type = cell.type === "integer" ? "number" : cell.type;
+    bytes.forEach((b, i) => {
+      if (!map.has(startAddr + i))
+        map.set(startAddr + i, {
+          value: b,
+          type,
+          cellId: cell.id,
+          isFirst: i === 0,
+          isLast: i === bytes.length - 1,
+        });
+    });
   }
 
   return map;
+}
+
+/** Concrete byte values from every byte-carrying cell (ignores fields and collapse state). */
+export function rawByteMap(cells: MemoryCell[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const cell of cells) {
+    const bytes = cellBytes(cell);
+    if (!bytes) continue;
+    const start = parseHexAddr(cell.address);
+    bytes.forEach((b, i) => {
+      if (!map.has(start + i)) map.set(start + i, b);
+    });
+  }
+  return map;
+}
+
+/** Addresses whose byte value (or presence) differs between two cell sets. */
+export function diffBytes(a: MemoryCell[], b: MemoryCell[]): Set<number> {
+  const ma = rawByteMap(a);
+  const mb = rawByteMap(b);
+  const out = new Set<number>();
+  for (const [addr, v] of ma) if (mb.get(addr) !== v) out.add(addr);
+  for (const addr of mb.keys()) if (!ma.has(addr)) out.add(addr);
+  return out;
+}
+
+// ── Cell tree (nested fields / arrays) ────────────────────────────
+
+function cellRange(c: Pick<MemoryCell, "address"> & Parameters<typeof cellByteSize>[0]): [number, number] {
+  const s = parseHexAddr(c.address);
+  return [s, s + cellByteSize(c)];
+}
+
+export function cellDepth(cells: MemoryCell[], cell: MemoryCell): number {
+  const byId = new Map(cells.map((c) => [c.id, c]));
+  let depth = 0;
+  let cur = cell.parentId ? byId.get(cell.parentId) : undefined;
+  while (cur && depth < 32) {
+    depth++;
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return depth;
+}
+
+/** Cells whose ancestors are all expanded, deepest first (so children claim bytes before parents). */
+export function visibleCells(cells: MemoryCell[]): MemoryCell[] {
+  if (!cells.some((c) => c.parentId)) return cells;
+  const byId = new Map(cells.map((c) => [c.id, c]));
+  const depth = new Map<string, number>();
+  const visible: MemoryCell[] = [];
+  for (const c of cells) {
+    let d = 0;
+    let hidden = false;
+    let cur = c.parentId ? byId.get(c.parentId) : undefined;
+    while (cur && d < 32) {
+      if (cur.collapsed) hidden = true;
+      d++;
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+    if (hidden) continue;
+    depth.set(c.id, d);
+    visible.push(c);
+  }
+  return visible.sort((x, y) => (depth.get(y.id) ?? 0) - (depth.get(x.id) ?? 0));
+}
+
+export function hasChildren(cells: MemoryCell[], id: string): boolean {
+  return cells.some((c) => c.parentId === id);
+}
+
+function descendantIds(cells: MemoryCell[], id: string): Set<string> {
+  const out = new Set<string>();
+  let frontier = [id];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    for (const c of cells) {
+      if (c.parentId && frontier.includes(c.parentId) && !out.has(c.id)) {
+        out.add(c.id);
+        next.push(c.id);
+      }
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+/** Remove a cell together with everything nested inside it. */
+export function removeCellTree(cells: MemoryCell[], id: string): MemoryCell[] {
+  const gone = descendantIds(cells, id);
+  gone.add(id);
+  return cells.filter((c) => !gone.has(c.id));
+}
+
+/** Depth-first order (roots by address, children under their parent) with depth. */
+export function cellTreeOrder(cells: MemoryCell[]): { cell: MemoryCell; depth: number }[] {
+  const ids = new Set(cells.map((c) => c.id));
+  const byAddr = (a: MemoryCell, b: MemoryCell) => parseHexAddr(a.address) - parseHexAddr(b.address);
+  const out: { cell: MemoryCell; depth: number }[] = [];
+  const walk = (parent: string | undefined, depth: number) => {
+    const kids = cells
+      .filter((c) => (parent ? c.parentId === parent : !c.parentId || !ids.has(c.parentId)))
+      .sort(byAddr);
+    for (const k of kids) {
+      out.push({ cell: k, depth });
+      if (depth < 32) walk(k.id, depth + 1);
+    }
+  };
+  walk(undefined, 0);
+  return out;
+}
+
+/**
+ * Insert or update a cell, nesting it into the innermost field that fully
+ * contains it. A new field adopts same-level cells it fully contains.
+ * Returns null when it would partially overlap other content.
+ */
+export function placeCell(
+  cells: MemoryCell[],
+  cell: MemoryCell,
+  editingId?: string,
+): MemoryCell[] | null {
+  const [start, end] = cellRange(cell);
+  const ownDesc = editingId ? descendantIds(cells, editingId) : new Set<string>();
+  const others = cells.filter((c) => c.id !== editingId && !ownDesc.has(c.id));
+
+  let parent: MemoryCell | undefined;
+  for (const c of others) {
+    if (c.type !== "field") continue;
+    const [s, e] = cellRange(c);
+    if (s <= start && end <= e && (!parent || e - s <= cellByteSize(parent))) parent = c;
+  }
+
+  const byId = new Map(cells.map((c) => [c.id, c]));
+  const ancestors = new Set<string>();
+  for (let p = parent; p && ancestors.size < 32; p = p.parentId ? byId.get(p.parentId) : undefined) {
+    ancestors.add(p.id);
+  }
+
+  const level = (c: MemoryCell) => (c.parentId && byId.has(c.parentId) ? c.parentId : undefined);
+  const adopted = new Set<string>();
+  if (cell.type === "field") {
+    for (const c of others) {
+      if (level(c) !== parent?.id) continue;
+      const [s, e] = cellRange(c);
+      if (start <= s && e <= end) adopted.add(c.id);
+    }
+  }
+  const adoptedDesc = new Set<string>();
+  for (const id of adopted) for (const d of descendantIds(cells, id)) adoptedDesc.add(d);
+
+  for (const c of others) {
+    if (ancestors.has(c.id) || adopted.has(c.id) || adoptedDesc.has(c.id)) continue;
+    const [s, e] = cellRange(c);
+    if (start < e && end > s) return null;
+  }
+
+  const placed: MemoryCell = { ...cell, parentId: parent?.id };
+  const exists = !!editingId && cells.some((c) => c.id === editingId);
+  const next = cells.map((c) => {
+    if (c.id === editingId) return placed;
+    if (adopted.has(c.id)) return { ...c, parentId: placed.id };
+    return c;
+  });
+  return exists ? next : [...next, placed];
+}
+
+/**
+ * Split byte-carrying cells at the [start, end) boundaries; remainders become
+ * hex cells. The inside part is dropped (to make room) unless `keepInside`
+ * (to nest it under a new field). Fields are kept.
+ */
+export function carveRange(
+  cells: MemoryCell[],
+  start: number,
+  end: number,
+  newId: () => string,
+  padLen: number,
+  keepInside = false,
+): MemoryCell[] {
+  const out: MemoryCell[] = [];
+  const hex = (bytes: number[]) =>
+    bytes.map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+  for (const c of cells) {
+    const bytes = cellBytes(c);
+    const [s, e] = cellRange(c);
+    if (!bytes || e <= start || s >= end) {
+      out.push(c);
+      continue;
+    }
+    if (keepInside && s >= start && e <= end) {
+      out.push(c);
+      continue;
+    }
+    const keep = { fieldColor: c.fieldColor, parentId: c.parentId };
+    if (keepInside) {
+      const [a, b] = [Math.max(s, start), Math.min(e, end)];
+      out.push({ id: newId(), type: "hex", address: fmtHex(a, padLen), value: hex(bytes.slice(a - s, b - s)), ...keep });
+    }
+    if (s < start) {
+      out.push({ id: newId(), type: "hex", address: fmtHex(s, padLen), value: hex(bytes.slice(0, start - s)), ...keep });
+    }
+    if (e > end) {
+      out.push({ id: newId(), type: "hex", address: fmtHex(end, padLen), value: hex(bytes.slice(end - s)), ...keep });
+    }
+  }
+  return out;
+}
+
+// ── Pointers ──────────────────────────────────────────────────────
+
+export interface PointerTarget {
+  nodeId: string;
+  name: string;
+  offset: number;
+}
+
+/** Find the memory node whose range contains `addr` (prefers `preferId`). */
+export function resolvePointerTarget(
+  nodes: AnodiNode[],
+  addr: number,
+  preferId?: string,
+): PointerTarget | null {
+  let found: PointerTarget | null = null;
+  for (const n of nodes) {
+    const d = n.data;
+    if (d.kind !== "memory") continue;
+    const md = d as MemoryLayoutData;
+    const base = parseHexAddr(md.baseAddress ?? "0");
+    const end = parseHexAddr(md.endAddress ?? "0");
+    if (addr < base || addr >= end) continue;
+    const t = { nodeId: n.id, name: md.name ?? "memory", offset: addr - base };
+    if (n.id === preferId) return t;
+    found ??= t;
+  }
+  return found;
+}
+
+export function pointerTargetLabel(t: PointerTarget | null): string {
+  if (!t) return "unmapped";
+  return t.offset ? `${t.name}+0x${t.offset.toString(16).toUpperCase()}` : t.name;
 }
 
 // ── Row items ─────────────────────────────────────────────────────

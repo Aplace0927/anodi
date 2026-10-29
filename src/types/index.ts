@@ -25,6 +25,20 @@ export interface SourceCodeData extends Record<string, unknown> {
   highlights?: { line: number; color?: string }[];
   /** Per-line notes keyed by display line number (Shift-click a line number). */
   lineNotes?: { line: number; text: string }[];
+  /** Word/range connection points (Ctrl/⌘-click or drag over code). */
+  tokenAnchors?: TokenAnchor[];
+}
+
+/**
+ * A connection point bound to a character range on a display line.
+ * `start`/`end` are character offsets into the raw line text (end exclusive).
+ * Handles are `anchor-<id>-left` / `anchor-<id>-right`.
+ */
+export interface TokenAnchor {
+  id: string;
+  line: number;
+  start: number;
+  end: number;
 }
 
 export interface ClassField {
@@ -56,11 +70,12 @@ export interface MemoryCollapsedRange {
 }
 
 /** Type of user-provided content attached to a memory address. */
-export type MemoryCellType = 'hex' | 'text' | 'field' | 'number' | 'integer';
+export type MemoryCellType = 'hex' | 'text' | 'field' | 'number' | 'integer' | 'pointer';
 
 export type IntegerSize = 1 | 2 | 4 | 8;
 export type Endianness = 'little' | 'big';
 export type MemoryNumberKind = 'int8_t' | 'int16_t' | 'int32_t' | 'int64_t' | 'float' | 'double';
+export type PointerSize = 4 | 8;
 
 /**
  * A user annotation attached to a specific memory address inside a MemoryLayoutNode.
@@ -69,6 +84,9 @@ export type MemoryNumberKind = 'int8_t' | 'int16_t' | 'int32_t' | 'int64_t' | 'f
  * - `text`    – plain string shown as "Hello"
  * - `field`   – named field spanning `fieldSize` bytes (e.g. `int size`)
  * - `number`  – scalar value rendered as bytes (`int*_t`, `float`, `double`, little/big endian)
+ * - `pointer` – address value; draws an edge to the memory row it points at
+ *
+ * Fields can contain other cells (`parentId`): struct members, array elements, or bytes.
  */
 export interface MemoryCell {
   id: string;
@@ -82,6 +100,17 @@ export interface MemoryCell {
   integerSize?: IntegerSize;     // legacy support for old "integer" cells
   endianness?: Endianness;       // for number/legacy-integer type: byte order
   fieldColor?: string;           // custom color for memory cell styling
+  pointerSize?: PointerSize;     // for pointer type: width in bytes
+  elemSize?: number;             // for field type: array element size (fieldSize = elemSize * count)
+  parentId?: string;             // enclosing field cell
+  collapsed?: boolean;           // for field type: hide child cells
+}
+
+/** A named snapshot of a memory node's cells (e.g. before / after an overflow). */
+export interface MemoryState {
+  id: string;
+  name: string;
+  cells: MemoryCell[];
 }
 
 export interface MemoryLayoutData extends Record<string, unknown> {
@@ -90,9 +119,16 @@ export interface MemoryLayoutData extends Record<string, unknown> {
   endAddress: string;       // end of the memory range (exclusive), e.g. "0x4200"
   unitSize: MemoryUnitSize; // bytes per addressable unit: 4, 8, or 16
   collapsedRanges: MemoryCollapsedRange[];
-  cells?: MemoryCell[];     // user-provided content annotations
+  cells?: MemoryCell[];     // user-provided content annotations (of the active state)
   name?: string;
   nodeColor?: string; // custom color for the node header/border
+  defaultEndianness?: Endianness; // default byte order for new number/pointer cells
+  pointerSize?: PointerSize;      // default pointer width (bytes)
+  /** Snapshots; the active one's live cells are in `cells` (its stored copy is stale). */
+  states?: MemoryState[];
+  activeStateId?: string;
+  /** Highlight bytes that differ from the previous state. */
+  showDiff?: boolean;
 }
 
 export interface NotepadData extends Record<string, unknown> {
@@ -136,11 +172,41 @@ export const GRID_SIZE = 20;
 export type BuiltinEdgeRelationship = 'call' | 'reference' | 'information';
 export type EdgeRelationship = BuiltinEdgeRelationship | (string & {});
 
+/** How an edge path is drawn between its endpoints and bend points. */
+export type EdgePathStyle = 'straight' | 'bezier' | 'step';
+export const EDGE_PATH_STYLES: { id: EdgePathStyle; label: string }[] = [
+  { id: 'straight', label: 'Straight' },
+  { id: 'bezier', label: 'Curve' },
+  { id: 'step', label: 'Step' },
+];
+
+export type EdgeArrow = 'end' | 'start' | 'both' | 'none';
+export const EDGE_ARROWS: { id: EdgeArrow; label: string }[] = [
+  { id: 'end', label: '→' },
+  { id: 'start', label: '←' },
+  { id: 'both', label: '↔' },
+  { id: 'none', label: '—' },
+];
+
+export const EDGE_WIDTHS = [1, 1.5, 2.5, 4] as const;
+export const DEFAULT_EDGE_WIDTH = 1.5;
+
 export interface AnodiEdgeData extends Record<string, unknown> {
   relationship: EdgeRelationship;
   bendPoints?: { x: number; y: number }[];
   label?: string;
+  /** Per-edge path style; falls back to the board-wide default when unset. */
+  pathStyle?: EdgePathStyle;
+  /** Stroke width in px (default DEFAULT_EDGE_WIDTH). */
+  strokeWidth?: number;
+  /** Arrowhead placement (default 'end'). */
+  arrow?: EdgeArrow;
+  /** Color override; falls back to the relationship color. */
+  color?: string;
 }
+
+/** Partial edge settings editable from the edge context menu / panel. */
+export type EdgeStylePatch = Partial<Pick<AnodiEdgeData, 'pathStyle' | 'strokeWidth' | 'arrow' | 'color'>>;
 
 // ── React Flow node/edge aliases ─────────────────────────────────
 

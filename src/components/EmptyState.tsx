@@ -70,8 +70,9 @@ export default function EmptyState({ onAddNode }: Props) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
-          <span className="text-indigo-500">A</span>nodi
+        <h1>
+          <img src="/light.svg" alt="Anodi" className="h-20 w-20 dark:hidden" />
+          <img src="/dark.svg" alt="Anodi" className="hidden h-20 w-20 dark:block" />
         </h1>
         <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
           <p>Press N to add a node</p>

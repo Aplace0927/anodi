@@ -5,8 +5,9 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import type { AnodiEdgeData } from '../../types';
-import { getEdgeStyle } from '../../types';
+import { getEdgeStyle, DEFAULT_EDGE_WIDTH } from '../../types';
 import { useGraphStore } from '../../store/graphStore';
+import { buildEdgePath } from '../../utils/edgePath';
 
 type Props = EdgeProps & { data?: AnodiEdgeData };
 
@@ -80,9 +81,12 @@ const CustomEdge = memo(
     sourceY,
     targetX,
     targetY,
+    sourcePosition,
+    targetPosition,
     data,
     selected,
     markerEnd,
+    markerStart,
   }: Props) => {
     const rel = data?.relationship ?? 'call';
     const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
@@ -90,7 +94,11 @@ const CustomEdge = memo(
     const addBendPoint = useGraphStore((s) => s.addBendPoint);
     const removeBendPoint = useGraphStore((s) => s.removeBendPoint);
     const updateBendPoint = useGraphStore((s) => s.updateBendPoint);
+    const defaultPathStyle = useGraphStore((s) => s.defaultEdgePathStyle);
     const style = getEdgeStyle(rel, userEdgeTypes);
+    const color = data?.color ?? style.color;
+    const pathStyle = data?.pathStyle ?? defaultPathStyle;
+    const width = data?.strokeWidth ?? DEFAULT_EDGE_WIDTH;
     const reactFlow = useReactFlow();
 
     const bendPoints = data?.bendPoints ?? [];
@@ -114,17 +122,25 @@ const CustomEdge = memo(
       { x: targetX, y: targetY },
     ];
 
-    // SVG path: straight line segments through all points
-    const pathD = allPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const { d: pathD, samples } = buildEdgePath(pathStyle, allPoints, sourcePosition, targetPosition);
 
-    // Label position at polyline midpoint
-    const labelPos = polylineMidpoint(allPoints);
+    // Label position at the midpoint of the rendered path
+    const labelPos = polylineMidpoint(samples);
 
     const strokeStyle: React.CSSProperties = {
-      stroke: style.color,
-      strokeWidth: selected ? 2.5 : 1.5,
+      stroke: color,
+      strokeWidth: selected ? width + 1 : width,
       strokeDasharray: style.strokeDasharray,
     };
+
+    // 15° angle snapping only makes sense for straight segments
+    const snapPoint = (
+      idx: number,
+      pts: { x: number; y: number }[],
+      source: { x: number; y: number },
+      target: { x: number; y: number },
+      raw: { x: number; y: number },
+    ) => (pathStyle === 'straight' ? bestSnap(idx, pts, source, target, raw) : raw);
 
     // Double-click on edge path → add a new bend point
     const handleEdgeDoubleClick = useCallback(
@@ -178,7 +194,7 @@ const CustomEdge = memo(
         const onMove = (moveEvt: PointerEvent) => {
           moveEvt.preventDefault();
           const raw = reactFlow.screenToFlowPosition({ x: moveEvt.clientX, y: moveEvt.clientY });
-          const pos = bestSnap(idx, startPoints, source, target, raw);
+          const pos = snapPoint(idx, startPoints, source, target, raw);
           setDragPoints(startPoints.map((p, i) => (i === idx ? pos : p)));
         };
 
@@ -191,7 +207,7 @@ const CustomEdge = memo(
         const onUp = (upEvt: PointerEvent) => {
           cleanup();
           const raw = reactFlow.screenToFlowPosition({ x: upEvt.clientX, y: upEvt.clientY });
-          const pos = bestSnap(idx, startPoints, source, target, raw);
+          const pos = snapPoint(idx, startPoints, source, target, raw);
           updateBendPoint(id, idx, pos);
           setDragPoints(null);
         };
@@ -200,7 +216,8 @@ const CustomEdge = memo(
         window.addEventListener('pointerup', onUp);
         cleanupRef.current = cleanup;
       },
-      [id, bendPoints, sourceX, sourceY, targetX, targetY, reactFlow, updateBendPoint, observerMode]
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [id, bendPoints, sourceX, sourceY, targetX, targetY, reactFlow, updateBendPoint, observerMode, pathStyle]
     );
 
     // Double-click on a control point → remove it
@@ -223,6 +240,7 @@ const CustomEdge = memo(
           style={strokeStyle}
           className="react-flow__edge-path"
           markerEnd={markerEnd as string}
+          markerStart={markerStart as string}
         />
         {/* Invisible wider path for interaction (click / double-click) */}
         <path
@@ -245,7 +263,7 @@ const CustomEdge = memo(
           >
             <span
               className="whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-bold text-white shadow"
-              style={{ backgroundColor: style.color }}
+              style={{ backgroundColor: color }}
             >
               {style.label}
               {data?.label ? (
@@ -280,7 +298,7 @@ const CustomEdge = memo(
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    backgroundColor: style.color,
+                    backgroundColor: color,
                     border: '2px solid white',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                   }}

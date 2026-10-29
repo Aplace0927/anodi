@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { MemoryCell } from "../../../types";
+import type { Endianness, MemoryCell } from "../../../types";
 import { v4 } from "../../../utils/uuid";
 import { fmtHex, parseHexAddr } from "../../../utils/memory";
 import {
@@ -10,40 +10,59 @@ import {
   buildStructCells,
 } from "../../../utils/memoryImport";
 import type { ImportSegment } from "../../../utils/memoryImport";
+import Segmented from "../../ui/Segmented";
+import { cyclic, cyclicFind } from "../../../utils/memoryTools";
 
 interface Props {
   baseAddress: string;
   endAddress: string;
   unitSize: number;
   cells: MemoryCell[];
+  defaultEndianness: Endianness;
+  /** Prefill (e.g. from a byte selection). */
+  initialTab?: Tab;
+  initialStart?: string;
+  initialLength?: number;
   onApply: (cells: MemoryCell[]) => void;
   onClose: () => void;
 }
 
-type Tab = "dump" | "file" | "struct";
+export type Tab = "dump" | "file" | "struct" | "fill";
+
+const MAX_FILL = 0x1000;
 
 const MAX_FILE_BYTES = 0x10000;
 
 const inputCls =
-  "flex-1 min-w-0 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-white focus:outline-none";
+  "flex-1 min-w-0 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500";
 
 export default function ImportPanel({
   baseAddress,
   endAddress,
   unitSize,
   cells,
+  defaultEndianness,
+  initialTab,
+  initialStart,
+  initialLength,
   onApply,
   onClose,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("dump");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "dump");
   const [text, setText] = useState("");
   const [absolute, setAbsolute] = useState(false);
-  const [startAddr, setStartAddr] = useState(baseAddress);
+  const [startAddr, setStartAddr] = useState(initialStart ?? baseAddress);
   const [skipZero, setSkipZero] = useState(false);
   const [fileBytes, setFileBytes] = useState<number[] | null>(null);
   const [fileInfo, setFileInfo] = useState("");
   const [structSrc, setStructSrc] = useState("");
   const [includePad, setIncludePad] = useState(true);
+  const [groupStruct, setGroupStruct] = useState(true);
+  const [fillMode, setFillMode] = useState<"byte" | "cyclic">("cyclic");
+  const [fillLen, setFillLen] = useState(String(initialLength ?? 0x40));
+  const [fillByte, setFillByte] = useState("41");
+  const [cyclicN, setCyclicN] = useState<4 | 8>(4);
+  const [findQuery, setFindQuery] = useState("");
 
   const common = { baseAddress, endAddress, unitSize, existing: cells, newId: v4 };
 
@@ -55,6 +74,16 @@ export default function ImportPanel({
         { ...common, skipZero },
       );
     }
+    if (tab === "fill") {
+      const len = Math.min(parseHexAddr(fillLen), MAX_FILL);
+      const b = parseInt(fillByte, 16);
+      if (len <= 0 || (fillMode === "byte" && !(b >= 0 && b <= 0xff))) return null;
+      const bytes = fillMode === "cyclic" ? cyclic(len, cyclicN) : new Array<number>(len).fill(b);
+      return buildImportCells(
+        resolveSegments([{ address: null, bytes }], { baseAddress, startAddress: startAddr, absolute: false }),
+        { ...common, skipZero: false },
+      );
+    }
     if (tab === "file" && fileBytes && fileBytes.length > 0) {
       const seg: ImportSegment[] = [{ address: null, bytes: fileBytes }];
       return buildImportCells(
@@ -64,7 +93,7 @@ export default function ImportPanel({
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, dump, fileBytes, startAddr, absolute, skipZero, baseAddress, endAddress, unitSize, cells]);
+  }, [tab, dump, fileBytes, startAddr, absolute, skipZero, baseAddress, endAddress, unitSize, cells, fillMode, fillLen, fillByte, cyclicN]);
 
   const struct = useMemo(
     () => (structSrc.trim() ? parseCStruct(structSrc, includePad) : null),
@@ -78,10 +107,11 @@ export default function ImportPanel({
             endAddress,
             existing: cells,
             newId: v4,
+            group: groupStruct,
           })
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [struct, startAddr, baseAddress, endAddress, cells],
+    [struct, startAddr, baseAddress, endAddress, cells, groupStruct],
   );
 
   const onFile = async (f: File | undefined) => {
@@ -103,21 +133,6 @@ export default function ImportPanel({
     if (result && canApply) onApply(result.cells);
   };
 
-  const tabBtn = (t: Tab, label: string) => (
-    <button
-      key={t}
-      type="button"
-      onClick={() => setTab(t)}
-      className={`flex-1 rounded border py-0.5 text-xs font-bold ${
-        tab === t
-          ? "border-orange-500 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-          : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   const check = (label: string, value: boolean, set: (v: boolean) => void) => (
     <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
       <input type="checkbox" checked={value} onChange={(e) => set(e.target.checked)} />
@@ -127,14 +142,21 @@ export default function ImportPanel({
 
   return (
     <div
-      className="nodrag nopan nowheel rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/80 p-2 text-xs text-gray-900 dark:text-white"
+      className="nodrag nopan nowheel rounded-md border border-gray-200 bg-white p-2 font-sans text-xs text-gray-900 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"
       onKeyDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
     >
-      <div className="mb-2 flex gap-1">
-        {tabBtn("dump", "Hexdump")}
-        {tabBtn("file", "Binary file")}
-        {tabBtn("struct", "C struct")}
+      <div className="mb-2">
+        <Segmented
+          options={[
+            { id: "dump", label: "Hexdump" },
+            { id: "file", label: "File" },
+            { id: "struct", label: "C struct" },
+            { id: "fill", label: "Fill" },
+          ]}
+          value={tab}
+          onChange={(t: Tab) => setTab(t)}
+        />
       </div>
 
       {tab === "dump" && (
@@ -195,15 +217,86 @@ export default function ImportPanel({
               ))}
             </div>
           )}
-          {check("Include (pad) cells", includePad, setIncludePad)}
+          <div className="flex gap-3">
+            {check("Include (pad) cells", includePad, setIncludePad)}
+            {check("Group as struct", groupStruct, setGroupStruct)}
+          </div>
+          {groupStruct && (
+            <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+              Existing bytes are kept and nested under members.
+            </p>
+          )}
         </>
       )}
 
-      {tab !== "struct" && <div className="mb-1">{check("Skip all-zero cells", skipZero, setSkipZero)}</div>}
+      {tab === "fill" && (
+        <div className="space-y-1.5">
+          <Segmented
+            options={[
+              { id: "cyclic", label: "Cyclic pattern", title: "pwntools-compatible de Bruijn sequence" },
+              { id: "byte", label: "Repeat byte" },
+            ]}
+            value={fillMode}
+            onChange={(m) => setFillMode(m)}
+          />
+          <div className="flex items-center gap-1">
+            <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Length</span>
+            <input
+              value={fillLen}
+              onChange={(e) => setFillLen(e.target.value)}
+              placeholder="64 or 0x40"
+              className={`${inputCls} font-mono`}
+            />
+            {fillMode === "byte" ? (
+              <input
+                value={fillByte}
+                onChange={(e) => setFillByte(e.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 2))}
+                title="Byte value (hex)"
+                className={`${inputCls} w-12 flex-none font-mono`}
+              />
+            ) : (
+              <div className="w-20 shrink-0">
+                <Segmented
+                  options={[
+                    { id: 4, label: "n=4" },
+                    { id: 8, label: "n=8" },
+                  ]}
+                  value={cyclicN}
+                  onChange={(n) => setCyclicN(n)}
+                />
+              </div>
+            )}
+          </div>
+          {fillMode === "cyclic" && (
+            <div className="flex items-center gap-1">
+              <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Find</span>
+              <input
+                value={findQuery}
+                onChange={(e) => setFindQuery(e.target.value)}
+                placeholder="0x6161616c or laaa"
+                className={`${inputCls} font-mono`}
+              />
+            </div>
+          )}
+          {fillMode === "cyclic" && findQuery.trim() && (() => {
+            const off = cyclicFind(findQuery, cyclicN, defaultEndianness);
+            const at = parseHexAddr(startAddr || baseAddress) + off;
+            return (
+              <p className="pl-[68px] font-mono text-[10px] text-gray-500 dark:text-gray-400">
+                {off < 0
+                  ? <span className="text-red-500 dark:text-red-400">not found in pattern (n={cyclicN})</span>
+                  : <>offset <b className="text-gray-900 dark:text-white">{off}</b> (0x{off.toString(16).toUpperCase()}) → {fmtHex(at, padLen)}</>}
+              </p>
+            );
+          })()}
+        </div>
+      )}
+
+      {(tab === "dump" || tab === "file") && <div className="mb-1">{check("Skip all-zero cells", skipZero, setSkipZero)}</div>}
 
       {needsStart && (
         <div className="mb-1 mt-1 flex items-center gap-1">
-          <span className="w-16 shrink-0 text-gray-500 dark:text-gray-400">Start addr</span>
+          <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Start</span>
           <input
             value={startAddr}
             onChange={(e) => setStartAddr(e.target.value)}
@@ -226,14 +319,14 @@ export default function ImportPanel({
       <div className="flex justify-end gap-1">
         <button
           onClick={onClose}
-          className="rounded border border-gray-300 dark:border-gray-600 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
         >
           Cancel
         </button>
         <button
           onClick={apply}
           disabled={!canApply}
-          className="rounded bg-orange-700 px-2 py-0.5 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-40"
+          className="rounded bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600"
         >
           Apply
         </button>

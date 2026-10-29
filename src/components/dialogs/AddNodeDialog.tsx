@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
+import Segmented from '../ui/Segmented';
 import { parseClassDefinition, withIds } from '../../utils/classParse';
 import type { NodeData, SourceLanguage, MemoryUnitSize } from '../../types';
 
@@ -212,21 +213,12 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
                 <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                   Unit Size (bytes)
                 </label>
-                <div className="flex gap-2">
-                  {([4, 8, 16] as MemoryUnitSize[]).map((u) => (
-                    <button
-                      key={u}
-                      onClick={() => setUnitSize(u)}
-                      className={`flex-1 rounded-lg border-2 py-2 text-sm font-normal transition-all ${
-                        unitSize === u
-                          ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      {u}B
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  size="md"
+                  options={([4, 8, 16] as MemoryUnitSize[]).map((u) => ({ id: u, label: `${u}B` }))}
+                  value={unitSize}
+                  onChange={(u) => setUnitSize(u)}
+                />
               </div>
             </>
           )}

@@ -28,11 +28,13 @@ import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { AnodiNode, AnodiEdge, GroupData } from './types';
-import { getEdgeStyle, GRID_SIZE } from './types';
+import { getEdgeStyle, GRID_SIZE, DEFAULT_EDGE_WIDTH } from './types';
 import type { SourceLanguage, NodeData } from './types';
 import { nodeKindColor, DIM_LEVELS, EDGE_OPACITY } from './theme/tokens';
-import ContextMenu from './components/ContextMenu';
-import type { ContextMenuState } from './components/ContextMenu';
+import ContextMenu from './components/contextMenu/ContextMenu';
+import type { ContextMenuState } from './components/contextMenu/types';
+import { codeHitAt } from './utils/tokenAnchor';
+import { buildPointerEdges, POINTER_EDGE_COLOR, POINTER_EDGE_PREFIX } from './utils/pointerEdges';
 import EmptyState from './components/EmptyState';
 
 const MAX_DROP_BYTES = 512 * 1024;
@@ -237,22 +239,50 @@ function AppInner() {
         gd.memberNodeIds.forEach((mid) => draggingGroupMemberIds.add(mid));
       }
     }
-    return edges.map((e) => {
+    const pointerEdges = buildPointerEdges(nodes).map((e): AnodiEdge => {
+      const isConnectedToSelected = selectedIdSet.has(e.source) || selectedIdSet.has(e.target);
+      const hidden = draggingGroupMemberIds.has(e.source) || draggingGroupMemberIds.has(e.target);
+      return {
+        ...e,
+        zIndex: 5,
+        animated: isConnectedToSelected,
+        markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: POINTER_EDGE_COLOR },
+        style: {
+          stroke: POINTER_EDGE_COLOR,
+          strokeWidth: 1.5,
+          strokeDasharray: '4 3',
+          opacity: hidden
+            ? DIM_LEVELS.hidden
+            : hasSelection && !isConnectedToSelected
+              ? EDGE_OPACITY.dimmed
+              : EDGE_OPACITY.normal,
+        },
+      };
+    });
+    return [...edges.map((e) => {
       const isConnectedToSelected =
         selectedIdSet.has(e.source) || selectedIdSet.has(e.target);
       // Hide edges connected to members of the group being dragged
       const isConnectedToDraggingGroup =
         draggingGroupMemberIds.has(e.source) || draggingGroupMemberIds.has(e.target);
+      const arrow = e.data?.arrow ?? 'end';
+      // Markers scale with stroke width (markerUnits=strokeWidth); keep arrowheads a constant size
+      const markerSize = (16 * DEFAULT_EDGE_WIDTH) / (e.data?.strokeWidth ?? DEFAULT_EDGE_WIDTH);
+      const marker = {
+        type: MarkerType.ArrowClosed,
+        width: markerSize,
+        height: markerSize,
+        color: e.data?.color ?? getEdgeStyle(e.data?.relationship ?? 'call', userEdgeTypes).color,
+      };
+      const touchesAnchor = !!(e.sourceHandle?.startsWith('anchor-') || e.targetHandle?.startsWith('anchor-'));
       return {
         ...e,
+        // Above regular nodes (z 0); anchor edges also above a selected node (z 1000)
+        zIndex: touchesAnchor ? 1001 : 5,
         animated: isConnectedToSelected,
         selected: e.id === selectedEdgeId,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 16,
-          height: 16,
-          color: getEdgeStyle(e.data?.relationship ?? 'call', userEdgeTypes).color,
-        },
+        markerEnd: arrow === 'end' || arrow === 'both' ? marker : undefined,
+        markerStart: arrow === 'start' || arrow === 'both' ? { ...marker, orient: 'auto-start-reverse' } : undefined,
         style: {
           opacity: isConnectedToDraggingGroup
             ? DIM_LEVELS.hidden
@@ -263,7 +293,7 @@ function AppInner() {
                 : EDGE_OPACITY.normal,
         },
       };
-    });
+    }), ...pointerEdges];
   }, [edges, selectedNodeIds, selectedIdSet, selectedEdgeId, userEdgeTypes, draggingGroupId, nodes]);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
@@ -281,6 +311,7 @@ function AppInner() {
 
   const handleEdgeClick: EdgeMouseHandler = useCallback(
     (_event, edge) => {
+      if (edge.id.startsWith(POINTER_EDGE_PREFIX)) return;
       selectEdge(edge.id);
     },
     [selectEdge]
@@ -469,7 +500,7 @@ function AppInner() {
 
   // ── Context menu handlers ──
   const openCtx = useCallback(
-    (e: React.MouseEvent | MouseEvent, kind: ContextMenuState['kind'], id?: string) => {
+    (e: React.MouseEvent | MouseEvent, kind: ContextMenuState['kind'], id?: string, extra?: Partial<ContextMenuState>) => {
       e.preventDefault();
       setCtxMenu({
         x: e.clientX,
@@ -477,6 +508,7 @@ function AppInner() {
         kind,
         id,
         flowPos: reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+        ...extra,
       });
     },
     [reactFlowInstance]
@@ -486,12 +518,22 @@ function AppInner() {
       const st = useGraphStore.getState();
       if (!st.observerMode && !st.selectedNodeIds.includes(node.id)) st.selectNode(node.id);
       const multi = useGraphStore.getState().selectedNodeIds.length > 1;
-      openCtx(e, multi ? 'selection' : 'node', node.id);
+      if (multi) return openCtx(e, 'selection', node.id);
+      // Right-click inside source code targets the line / word under the cursor
+      const hit = node.type === 'source' ? codeHitAt(e.target, e.clientX) : null;
+      const anchorEl = (e.target as HTMLElement).closest?.('[data-anchor-id]') as HTMLElement | null;
+      openCtx(e, 'node', node.id, {
+        code: hit ? { line: hit.line, index: hit.index, content: hit.content } : undefined,
+        anchorId: anchorEl?.dataset.anchorId,
+      });
     },
     [openCtx]
   );
   const handleEdgeContextMenu: EdgeMouseHandler = useCallback(
-    (e, edge) => openCtx(e, 'edge', edge.id),
+    (e, edge) => {
+      if (edge.id.startsWith(POINTER_EDGE_PREFIX)) return;
+      openCtx(e, 'edge', edge.id);
+    },
     [openCtx]
   );
   const handlePaneContextMenu = useCallback(

@@ -6,6 +6,8 @@ interface Props {
   kind: keyof typeof NODE_KIND_COLORS;
   icon: ComponentType<{ size?: number | string; color?: string; className?: string }>;
   name: string;
+  /** Second line under the name (e.g. an address range). */
+  subtitle?: ReactNode;
   badge?: ReactNode;
   nodeColor?: string;
   actions?: ReactNode;
@@ -14,7 +16,7 @@ interface Props {
   mono?: boolean;
 }
 
-export default function NodeHeader({ kind, icon: Icon, name, badge, nodeColor, actions, height, mono }: Props) {
+export default function NodeHeader({ kind, icon: Icon, name, subtitle, badge, nodeColor, actions, height, mono }: Props) {
   const accent = NODE_KIND_COLORS[kind];
   const textColor = nodeColor ? contrastTextColor(nodeColor) : undefined;
   return (
@@ -31,7 +33,14 @@ export default function NodeHeader({ kind, icon: Icon, name, badge, nodeColor, a
     >
       <Icon size={14} color={nodeColor ? textColor : accent} className="shrink-0" />
       {badge}
-      <span className={`flex-1 truncate text-sm font-bold ${mono ? 'font-mono' : ''}`}>{name}</span>
+      {subtitle ? (
+        <div className="min-w-0 flex-1">
+          <div className={`truncate text-sm font-bold ${mono ? 'font-mono' : ''}`}>{name}</div>
+          <div className="truncate text-xs opacity-60">{subtitle}</div>
+        </div>
+      ) : (
+        <span className={`flex-1 truncate text-sm font-bold ${mono ? 'font-mono' : ''}`}>{name}</span>
+      )}
       {actions && (
         <div className="flex shrink-0 items-center gap-1" style={textColor ? { color: textColor } : undefined}>
           {actions}

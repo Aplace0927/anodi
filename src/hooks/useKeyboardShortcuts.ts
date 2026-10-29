@@ -38,6 +38,14 @@ export const SHORTCUT_GROUPS: { title: string; items: { keys: string; label: str
       { keys: '4–9, 0', label: 'Custom edge types' },
     ],
   },
+  {
+    title: 'Source code',
+    items: [
+      { keys: '⌘-click word', label: 'Toggle word connection point' },
+      { keys: '⌘-drag', label: 'Connection point on a character range' },
+      { keys: 'Right-click', label: 'Edit node, line, or word' },
+    ],
+  },
 ];
 
 interface UseKeyboardShortcutsOptions {

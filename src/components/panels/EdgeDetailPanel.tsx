@@ -2,8 +2,11 @@ import { useCallback } from 'react';
 import { X, ArrowRightLeft, Trash2 } from 'lucide-react';
 import { PanelShell } from './DetailPanel';
 import { useGraphStore } from '../../store/graphStore';
-import type { NodeData, EdgeRelationship } from '../../types';
-import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, getEdgeStyle } from '../../types';
+import type { NodeData, EdgeRelationship, EdgePathStyle, EdgeArrow } from '../../types';
+import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, EDGE_PATH_STYLES, EDGE_ARROWS, EDGE_WIDTHS, DEFAULT_EDGE_WIDTH, getEdgeStyle } from '../../types';
+import { anchorText } from '../../utils/tokenAnchor';
+import Segmented from '../ui/Segmented';
+import SwatchRow from '../ui/SwatchRow';
 
 const RELATIONSHIPS: EdgeRelationship[] = [...BUILTIN_RELATIONSHIPS];
 
@@ -18,6 +21,15 @@ function describeEndpoint(
   const nodeName = nodeData.name ?? nodeId;
 
   if (nodeData.kind === 'source') {
+    // Word anchors: "anchor-<id>-left|right"
+    const anchorMatch = handleId?.match(/^anchor-(.+?)-(left|right)$/);
+    if (anchorMatch) {
+      const anchor = nodeData.tokenAnchors?.find((a) => a.id === anchorMatch[1]);
+      if (anchor) {
+        const text = anchorText(nodeData.code, nodeData.collapsedLineMap ?? [], anchor);
+        return { nodeLabel: nodeName, detail: `Line ${anchor.line} · “${text ?? '?'}”` };
+      }
+    }
     // Handle IDs are like "line-5-left" or "line-5-right"
     const match = handleId?.match(/^line-(\d+)/);
     if (match) return { nodeLabel: nodeName, detail: `Line ${match[1]}` };
@@ -62,6 +74,8 @@ export default function EdgeDetailPanel() {
   const updateEdgeRelationship = useGraphStore((s) => s.updateEdgeRelationship);
   const updateEdgeLabel = useGraphStore((s) => s.updateEdgeLabel);
   const clearBendPoints = useGraphStore((s) => s.clearBendPoints);
+  const updateEdgeStyle = useGraphStore((s) => s.updateEdgeStyle);
+  const defaultPathStyle = useGraphStore((s) => s.defaultEdgePathStyle);
   const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
 
   const edge = edges.find((e) => e.id === selectedEdgeId);
@@ -91,7 +105,7 @@ export default function EdgeDetailPanel() {
         <div className="flex items-center gap-2">
           <span
             className="rounded px-1.5 py-0.5 text-xs font-bold text-white"
-            style={{ backgroundColor: style.color }}
+            style={{ backgroundColor: edge.data?.color ?? style.color }}
           >
             {style.label}
           </span>
@@ -102,6 +116,7 @@ export default function EdgeDetailPanel() {
         </button>
       </div>
 
+      <div className="flex-1 overflow-y-auto">
       {/* From / To */}
       <div className="space-y-4 px-4 py-4">
         {/* Connected From */}
@@ -160,6 +175,41 @@ export default function EdgeDetailPanel() {
         />
       </div>
 
+      {/* Appearance */}
+      <div className="space-y-3 border-t border-gray-300 px-4 py-3 dark:border-gray-700">
+        <div>
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Path</label>
+          <Segmented
+            size="md"
+            options={EDGE_PATH_STYLES.map((p) => ({ id: p.id, label: p.label }))}
+            value={edge.data?.pathStyle ?? defaultPathStyle}
+            onChange={(v: EdgePathStyle) => updateEdgeStyle(edge.id, { pathStyle: v })}
+          />
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Arrow</label>
+            <Segmented
+              options={EDGE_ARROWS.map((a) => ({ id: a.id, label: a.label, title: a.id }))}
+              value={edge.data?.arrow ?? 'end'}
+              onChange={(v: EdgeArrow) => updateEdgeStyle(edge.id, { arrow: v === 'end' ? undefined : v })}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Width</label>
+            <Segmented
+              options={EDGE_WIDTHS.map((w) => ({ id: w, label: String(w), title: `${w}px` }))}
+              value={edge.data?.strokeWidth ?? DEFAULT_EDGE_WIDTH}
+              onChange={(v: number) => updateEdgeStyle(edge.id, { strokeWidth: v === DEFAULT_EDGE_WIDTH ? undefined : v })}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Color</label>
+          <SwatchRow value={edge.data?.color} fallback={style.color} onChange={(c) => updateEdgeStyle(edge.id, { color: c })} />
+        </div>
+      </div>
+
       {/* Bend points section */}
       <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
         <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
@@ -205,6 +255,7 @@ export default function EdgeDetailPanel() {
             </option>
           ))}
         </select>
+      </div>
       </div>
     </PanelShell>
   );

@@ -3,6 +3,7 @@ import {
   parseHexAddr,
   fmtHex,
   cellByteSize,
+  cellBytes,
   MAX_MEMORY_RANGE,
 } from "./memory";
 
@@ -257,6 +258,8 @@ export interface StructField {
   align: number;
   unknown: boolean;
   isPad?: boolean;
+  /** Element size for array members (size = elemSize * count). */
+  elemSize?: number;
 }
 
 export interface ParsedStruct {
@@ -389,7 +392,7 @@ export function parseCStruct(src: string, includePad: boolean): ParsedStruct {
       const aligned = Math.ceil(offset / elem.align) * elem.align;
       pushPad(aligned - offset);
       offset = aligned;
-      fields.push({ label, offset, size, align: elem.align, unknown });
+      fields.push({ label, offset, size, align: elem.align, unknown, elemSize: count > 1 ? elem.size : undefined });
       offset += size;
       maxAlign = Math.max(maxAlign, elem.align);
     }
@@ -415,13 +418,23 @@ export interface StructCellsResult {
 export function buildStructCells(
   st: ParsedStruct,
   startAddress: string,
-  opts: Omit<BuildCellsOptions, "unitSize" | "skipZero">,
+  opts: Omit<BuildCellsOptions, "unitSize" | "skipZero"> & { group?: boolean },
 ): StructCellsResult {
   const [base, end] = effectiveRange(opts.baseAddress, opts.endAddress);
   const padLen = Math.max(4, parseHexAddr(opts.endAddress).toString(16).length);
   const start = startAddress.trim() ? parseHexAddr(startAddress) : base;
   const created: MemoryCell[] = [];
   let clamped = 0;
+  const parentId = opts.group && start >= base && start + st.size <= end ? opts.newId() : undefined;
+  if (parentId) {
+    created.push({
+      id: parentId,
+      type: "field",
+      address: fmtHex(start, padLen),
+      fieldName: st.name ? `struct ${st.name}` : "struct",
+      fieldSize: st.size,
+    });
+  }
   for (const f of st.fields) {
     const a = start + f.offset;
     if (a < base || a + f.size > end) {
@@ -434,7 +447,9 @@ export function buildStructCells(
       address: fmtHex(a, padLen),
       fieldName: f.label,
       fieldSize: f.size,
+      elemSize: f.elemSize,
       fieldColor: f.isPad ? PAD_COLOR : undefined,
+      parentId,
     });
   }
   const footprint = new Set<number>();
@@ -442,14 +457,54 @@ export function buildStructCells(
     const s = parseHexAddr(c.address);
     for (let i = 0; i < (c.fieldSize ?? 1); i++) footprint.add(s + i);
   }
-  const kept = opts.existing.filter((c) => {
+  const overlaps = (c: MemoryCell) => {
     const s = parseHexAddr(c.address);
     const n = cellByteSize(c);
-    for (let i = 0; i < n; i++) if (footprint.has(s + i)) return false;
-    return true;
-  });
+    for (let i = 0; i < n; i++) if (footprint.has(s + i)) return true;
+    return false;
+  };
+  const kept = opts.existing.filter((c) => !overlaps(c));
+
+  // Grouped import overlays existing bytes: split them at member boundaries
+  // and nest each piece under the member that contains it.
+  const fragments: MemoryCell[] = [];
+  if (parentId) {
+    const members = created.filter((c) => c.id !== parentId);
+    const cuts = new Set<number>();
+    for (const m of created) {
+      const a = parseHexAddr(m.address);
+      cuts.add(a);
+      cuts.add(a + (m.fieldSize ?? 1));
+    }
+    for (const c of opts.existing) {
+      const bytes = cellBytes(c);
+      if (!bytes || !overlaps(c)) continue;
+      const s = parseHexAddr(c.address);
+      const e = s + bytes.length;
+      const points = [s, e, ...Array.from(cuts).filter((x) => x > s && x < e)].sort((x, y) => x - y);
+      for (let i = 0; i + 1 < points.length; i++) {
+        const [a, b] = [points[i], points[i + 1]];
+        const owner = members.find((m) => {
+          const ms = parseHexAddr(m.address);
+          return ms <= a && b <= ms + (m.fieldSize ?? 1);
+        });
+        const inStruct = a >= start && b <= start + st.size;
+        fragments.push({
+          id: opts.newId(),
+          type: "hex",
+          address: fmtHex(a, padLen),
+          value: bytes
+            .slice(a - s, b - s)
+            .map((x) => x.toString(16).toUpperCase().padStart(2, "0"))
+            .join(" "),
+          fieldColor: c.fieldColor,
+          parentId: owner?.id ?? (inStruct ? parentId : c.parentId),
+        });
+      }
+    }
+  }
   return {
-    cells: [...kept, ...created],
+    cells: [...kept, ...created, ...fragments],
     created: created.length,
     clamped,
     replaced: opts.existing.length - kept.length,
