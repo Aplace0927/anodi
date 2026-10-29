@@ -15,6 +15,22 @@ import type {
   GroupData,
 } from '../types';
 import { USER_EDGE_SHORTCUT_KEYS, MAX_USER_EDGE_TYPES, GROUP_PADDING, GROUP_HEADER_HEIGHT, GROUP_MIN_WIDTH, GROUP_MIN_HEIGHT } from '../types';
+import { alignNodes, distributeNodes, computeAutoLayout } from '../utils/layout';
+import type { AlignMode, LayoutDirection } from '../utils/layout';
+import {
+  loadBoardIndex,
+  saveBoardIndex,
+  loadCurrentBoardId,
+  saveCurrentBoardId,
+  loadBoardData,
+  saveBoardData,
+  deleteBoardData,
+  newBoardId,
+} from '../utils/persistence';
+import type { BoardMeta } from '../utils/persistence';
+
+export type { BoardMeta };
+export type SaveStatus = 'saved' | 'saving' | 'error';
 
 interface Snapshot {
   nodes: AnodiNode[];
@@ -38,6 +54,11 @@ interface GraphState {
   userEdgeTypes: UserEdgeType[];
   clipboard: Clipboard | null;
 
+  // Boards / persistence
+  boards: BoardMeta[];
+  currentBoardId: string;
+  saveStatus: SaveStatus;
+
   // History
   past: Snapshot[];
   future: Snapshot[];
@@ -46,6 +67,10 @@ interface GraphState {
   addNode: (name: string, data: NodeData, position?: { x: number; y: number }) => void;
   updateNodeData: (id: string, data: Partial<NodeData>) => void;
   updateNodeName: (id: string, name: string) => void;
+  /** Apply several position/data updates as a single undo step. */
+  updateNodesBulk: (updates: { id: string; position?: { x: number; y: number }; data?: Partial<NodeData> }[]) => void;
+  /** Add several nodes as a single undo step; returns the new ids. */
+  addNodes: (nodes: { name: string; data: NodeData; position?: { x: number; y: number } }[]) => string[];
   onNodesChange: (changes: NodeChange<AnodiNode>[]) => void;
 
   // Edge actions
@@ -54,6 +79,13 @@ interface GraphState {
   setActiveEdgeType: (type: EdgeRelationship) => void;
   swapEdgeDirection: (edgeId: string) => void;
   updateEdgeRelationship: (edgeId: string, relationship: EdgeRelationship) => void;
+  updateEdgeLabel: (edgeId: string, label: string) => void;
+  /** Create an edge programmatically (one undo step); returns the new edge id. */
+  addEdgeBetween: (
+    source: string,
+    target: string,
+    opts?: { sourceHandle?: string | null; targetHandle?: string | null; relationship?: EdgeRelationship; label?: string },
+  ) => string;
 
   // Bend point actions
   addBendPoint: (edgeId: string, index: number, point: { x: number; y: number }) => void;
@@ -81,6 +113,23 @@ interface GraphState {
   groupHoverDelay: number;
   setGroupHoverDelay: (ms: number) => void;
 
+  // Align / distribute / layout
+  alignSelected: (mode: AlignMode) => void;
+  distributeSelected: (axis: 'x' | 'y') => void;
+  autoLayout: (direction: LayoutDirection, onlySelected?: boolean) => void;
+
+  // Snap to grid
+  snapToGrid: boolean;
+  setSnapToGrid: (on: boolean) => void;
+
+  // Boards
+  createBoard: (name?: string) => string;
+  switchBoard: (id: string) => void;
+  renameBoard: (id: string, name: string) => void;
+  duplicateBoard: (id: string) => string | null;
+  deleteBoard: (id: string) => void;
+  initBoards: () => void;
+
   // Clipboard
   copySelection: () => void;
   pasteSelection: (offset?: { x: number; y: number }) => void;
@@ -105,10 +154,41 @@ interface GraphState {
 let nodeCounter = 1;
 let edgeCounter = 1;
 
+// ── History coalescing ───────────────────────────────────────────
+
+const COALESCE_MS = 1000;
+/** Last coalescible edit (node/edge + action); consecutive edits within COALESCE_MS share one snapshot. */
+let lastEdit: { key: string; time: number } | null = null;
+/** True while a node drag is in progress (snapshot already taken). */
+let dragInProgress = false;
+
 function pushSnapshot(past: Snapshot[], nodes: AnodiNode[], edges: AnodiEdge[]): Snapshot[] {
+  lastEdit = null;
   const newPast = [...past, { nodes, edges }];
   if (newPast.length > MAX_HISTORY) newPast.shift();
   return newPast;
+}
+
+/** History patch for a text-like edit: snapshots unless the same key was edited moments ago. */
+function coalescedHistory(s: GraphState, key: string): { past: Snapshot[]; future: Snapshot[] } {
+  const now = Date.now();
+  if (lastEdit && lastEdit.key === key && now - lastEdit.time < COALESCE_MS) {
+    lastEdit.time = now;
+    return { past: s.past, future: [] };
+  }
+  const past = pushSnapshot(s.past, s.nodes, s.edges);
+  lastEdit = { key, time: now };
+  return { past, future: [] };
+}
+
+const SNAP_GRID_KEY = 'anodi-snap-grid';
+
+function loadSnapToGrid(): boolean {
+  try {
+    return localStorage.getItem(SNAP_GRID_KEY) === 'true';
+  } catch {
+    return false;
+  }
 }
 
 const USER_EDGE_TYPES_KEY = 'anodi-user-edge-types';
@@ -185,6 +265,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   searchQuery: '',
   userEdgeTypes: loadUserEdgeTypes(),
   clipboard: null,
+  boards: [],
+  currentBoardId: '',
+  saveStatus: 'saved',
+  snapToGrid: loadSnapToGrid(),
   past: [],
   future: [],
   groupHoverDelay: 600,
@@ -208,8 +292,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   updateNodeData: (id, patch) => {
     set((s) => ({
-      past: pushSnapshot(s.past, s.nodes, s.edges),
-      future: [],
+      ...coalescedHistory(s, `${id}:data`),
       nodes: s.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, ...patch } as NodeData } : n
       ),
@@ -218,12 +301,49 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   updateNodeName: (id, name) => {
     set((s) => ({
-      past: pushSnapshot(s.past, s.nodes, s.edges),
-      future: [],
+      ...coalescedHistory(s, `${id}:name`),
       nodes: s.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, name } } : n
       ),
     }));
+  },
+
+  updateNodesBulk: (updates) => {
+    if (updates.length === 0) return;
+    const byId = new Map(updates.map((u) => [u.id, u]));
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      nodes: s.nodes.map((n) => {
+        const u = byId.get(n.id);
+        if (!u) return n;
+        return {
+          ...n,
+          position: u.position ?? n.position,
+          data: u.data ? ({ ...n.data, ...u.data } as NodeData) : n.data,
+        };
+      }),
+    }));
+  },
+
+  addNodes: (specs) => {
+    if (specs.length === 0) return [];
+    const newNodes: AnodiNode[] = specs.map((spec) => {
+      const id = `node-${nodeCounter++}`;
+      const offset = (nodeCounter - 1) * 20;
+      return {
+        id,
+        type: spec.data.kind,
+        position: spec.position ?? { x: 100 + (offset % 400), y: 100 + Math.floor(offset / 400) * 200 },
+        data: { ...spec.data, name: spec.name },
+      } as AnodiNode;
+    });
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      nodes: [...s.nodes, ...newNodes],
+    }));
+    return newNodes.map((n) => n.id);
   },
 
   onNodesChange: (changes) => {
@@ -231,6 +351,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       (c) => c.type === 'remove' || c.type === 'add'
     );
     const hasSelection = changes.some((c) => c.type === 'select');
+    // Drag undo: one snapshot when a drag begins, re-armed when it ends
+    let dragStart = false;
+    for (const c of changes) {
+      if (c.type !== 'position') continue;
+      if (c.dragging === true && !dragInProgress) {
+        dragInProgress = true;
+        dragStart = true;
+      } else if (c.dragging === false) {
+        dragInProgress = false;
+      }
+    }
     // Gather removed node IDs so we can clean up group membership
     const removedIds = new Set(
       changes.filter((c) => c.type === 'remove').map((c) => c.id)
@@ -253,7 +384,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         });
       }
       return {
-        ...(hasStructural
+        ...(hasStructural || dragStart
           ? { past: pushSnapshot(s.past, s.nodes, s.edges), future: [] }
           : {}),
         nodes: finalNodes,
@@ -283,6 +414,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       edges: addEdge(
         {
           ...connection,
+          id: `edge-${edgeCounter++}`,
           type: 'custom',
           data: edgeData,
         },
@@ -324,12 +456,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         ? { ...e, data: { ...e.data, relationship: 'call' as EdgeRelationship } as AnodiEdgeData }
         : e
     );
-    set({
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
       userEdgeTypes: updated,
       edges: updatedEdges,
       // If the removed type was active, reset to 'call'
       ...(activeEdgeType === id ? { activeEdgeType: 'call' as EdgeRelationship } : {}),
-    });
+    }));
   },
 
   swapEdgeDirection: (edgeId) => {
@@ -363,6 +497,40 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           : e
       ),
     }));
+  },
+
+  updateEdgeLabel: (edgeId, label) => {
+    set((s) => ({
+      ...coalescedHistory(s, `${edgeId}:label`),
+      edges: s.edges.map((e) =>
+        e.id === edgeId
+          ? { ...e, data: { ...e.data, label } as AnodiEdgeData }
+          : e
+      ),
+    }));
+  },
+
+  addEdgeBetween: (source, target, opts) => {
+    const id = `edge-${edgeCounter++}`;
+    const edgeData: AnodiEdgeData = {
+      relationship: opts?.relationship ?? get().activeEdgeType,
+      ...(opts?.label ? { label: opts.label } : {}),
+    };
+    const edge: AnodiEdge = {
+      id,
+      source,
+      target,
+      sourceHandle: opts?.sourceHandle ?? null,
+      targetHandle: opts?.targetHandle ?? null,
+      type: 'custom',
+      data: edgeData,
+    };
+    set((s) => ({
+      past: pushSnapshot(s.past, s.nodes, s.edges),
+      future: [],
+      edges: [...s.edges, edge],
+    }));
+    return id;
   },
 
   addBendPoint: (edgeId, index, point) => {
@@ -538,6 +706,132 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     get().recomputeGroupBounds();
   },
 
+  // ── Align / distribute / layout ────────────────────────────────
+
+  alignSelected: (mode) => {
+    const { nodes, selectedNodeIds, updateNodesBulk, recomputeGroupBounds } = get();
+    const sel = new Set(selectedNodeIds);
+    const targets = nodes.filter((n) => sel.has(n.id) && n.type !== 'group');
+    const updates = alignNodes(targets, mode);
+    if (updates.length === 0) return;
+    updateNodesBulk(updates);
+    recomputeGroupBounds();
+  },
+
+  distributeSelected: (axis) => {
+    const { nodes, selectedNodeIds, updateNodesBulk, recomputeGroupBounds } = get();
+    const sel = new Set(selectedNodeIds);
+    const targets = nodes.filter((n) => sel.has(n.id) && n.type !== 'group');
+    const updates = distributeNodes(targets, axis);
+    if (updates.length === 0) return;
+    updateNodesBulk(updates);
+    recomputeGroupBounds();
+  },
+
+  autoLayout: (direction, onlySelected) => {
+    const { nodes, edges, selectedNodeIds, updateNodesBulk, recomputeGroupBounds } = get();
+    const sel = new Set(selectedNodeIds);
+    const targets = onlySelected ? nodes.filter((n) => sel.has(n.id)) : nodes;
+    const updates = computeAutoLayout(targets, edges, direction);
+    if (updates.length === 0) return;
+    updateNodesBulk(updates);
+    recomputeGroupBounds();
+  },
+
+  setSnapToGrid: (on) => {
+    try {
+      localStorage.setItem(SNAP_GRID_KEY, String(on));
+    } catch {
+      // ignore
+    }
+    set({ snapToGrid: on });
+  },
+
+  // ── Boards ─────────────────────────────────────────────────────
+
+  createBoard: (name) => {
+    flushSave();
+    const id = newBoardId();
+    const meta: BoardMeta = { id, name: name?.trim() || 'Untitled board', updatedAt: Date.now() };
+    const boards = [...get().boards, meta];
+    saveBoardData(id, [], [], get().userEdgeTypes);
+    saveBoardIndex(boards);
+    saveCurrentBoardId(id);
+    set({ boards, currentBoardId: id, saveStatus: 'saved' });
+    loadWithoutAutosave([], []);
+    return id;
+  },
+
+  switchBoard: (id) => {
+    const { currentBoardId, boards } = get();
+    if (id === currentBoardId || !boards.some((b) => b.id === id)) return;
+    flushSave();
+    const data = loadBoardData(id);
+    saveCurrentBoardId(id);
+    set({ currentBoardId: id, saveStatus: 'saved' });
+    loadWithoutAutosave(data?.nodes ?? [], data?.edges ?? [], data?.userEdgeTypes);
+  },
+
+  renameBoard: (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const boards = get().boards.map((b) => (b.id === id ? { ...b, name: trimmed } : b));
+    saveBoardIndex(boards);
+    set({ boards });
+  },
+
+  duplicateBoard: (id) => {
+    flushSave();
+    const src = get().boards.find((b) => b.id === id);
+    if (!src) return null;
+    const data = loadBoardData(id);
+    const newId = newBoardId();
+    const ok = saveBoardData(newId, data?.nodes ?? [], data?.edges ?? [], data?.userEdgeTypes ?? get().userEdgeTypes);
+    if (!ok) {
+      set({ saveStatus: 'error' });
+      return null;
+    }
+    const boards = [...get().boards, { id: newId, name: `${src.name} copy`, updatedAt: Date.now() }];
+    saveBoardIndex(boards);
+    set({ boards });
+    return newId;
+  },
+
+  deleteBoard: (id) => {
+    const { boards, currentBoardId } = get();
+    if (!boards.some((b) => b.id === id)) return;
+    if (id === currentBoardId) cancelSave();
+    else flushSave();
+    deleteBoardData(id);
+    const remaining = boards.filter((b) => b.id !== id);
+    saveBoardIndex(remaining);
+    set({ boards: remaining });
+    if (id !== currentBoardId) return;
+    if (remaining.length > 0) {
+      // Clear current id so switchBoard does not treat it as a no-op
+      set({ currentBoardId: '' });
+      get().switchBoard(remaining[0].id);
+    } else {
+      get().createBoard('Untitled board');
+    }
+  },
+
+  initBoards: () => {
+    if (boardsInitialized) return;
+    boardsInitialized = true;
+    let boards = loadBoardIndex();
+    if (boards.length === 0) {
+      boards = [{ id: newBoardId(), name: 'Untitled board', updatedAt: Date.now() }];
+      saveBoardIndex(boards);
+    }
+    const last = loadCurrentBoardId();
+    const id = boards.some((b) => b.id === last) ? (last as string) : boards[0].id;
+    saveCurrentBoardId(id);
+    set({ boards, currentBoardId: id, saveStatus: 'saved' });
+    const data = loadBoardData(id);
+    loadWithoutAutosave(data?.nodes ?? [], data?.edges ?? [], data?.userEdgeTypes);
+  },
+
   setGroupHoverDelay: (ms) => set({ groupHoverDelay: ms }),
 
   setObserverMode: (mode) => set({ observerMode: mode }),
@@ -605,6 +899,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }, 0);
     // If no standard IDs were found, use current timestamp to avoid collisions
     nodeCounter = maxId > 0 ? maxId + 1 : Date.now();
+    const maxEdgeId = edges.reduce((max, e) => {
+      const match = e.id.match(/^edge-(\d+)$/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    edgeCounter = Math.max(edgeCounter, maxEdgeId + 1);
+    lastEdit = null;
+    dragInProgress = false;
 
     // Restore user-defined edge types if present, re-assigning shortcut keys
     const restoredEdgeTypes = importedUserEdgeTypes && Array.isArray(importedUserEdgeTypes)
@@ -621,6 +922,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   undo: () => {
     const { past, future, nodes, edges } = get();
     if (past.length === 0) return;
+    lastEdit = null;
     const previous = past[past.length - 1];
     set({
       past: past.slice(0, -1),
@@ -633,6 +935,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   redo: () => {
     const { past, future, nodes, edges } = get();
     if (future.length === 0) return;
+    lastEdit = null;
     const next = future[0];
     set({
       past: [...past, { nodes, edges }],
@@ -645,3 +948,66 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   canUndo: () => get().past.length > 0,
   canRedo: () => get().future.length > 0,
 }));
+
+// ── Autosave ─────────────────────────────────────────────────────
+
+const AUTOSAVE_MS = 600;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+/** Board id captured when the pending save was scheduled. */
+let pendingBoardId: string | null = null;
+/** True while a board switch/load is replacing store contents (must not be autosaved). */
+let suppressAutosave = false;
+let boardsInitialized = false;
+
+function loadWithoutAutosave(nodes: AnodiNode[], edges: AnodiEdge[], userEdgeTypes?: UserEdgeType[]) {
+  suppressAutosave = true;
+  try {
+    useGraphStore.getState().loadGraph(nodes, edges, userEdgeTypes);
+  } finally {
+    suppressAutosave = false;
+  }
+}
+
+function cancelSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  pendingBoardId = null;
+}
+
+/** Write the pending save now (if any) to the board it was scheduled for. */
+function flushSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  const boardId = pendingBoardId;
+  pendingBoardId = null;
+  if (!boardId) return;
+  const st = useGraphStore.getState();
+  // Only the current board's contents live in the store
+  if (st.currentBoardId !== boardId) return;
+  const ok = saveBoardData(boardId, st.nodes, st.edges, st.userEdgeTypes);
+  const boards = st.boards.map((b) => (b.id === boardId ? { ...b, updatedAt: Date.now() } : b));
+  const indexOk = saveBoardIndex(boards);
+  useGraphStore.setState({ boards, saveStatus: ok && indexOk ? 'saved' : 'error' });
+}
+
+function scheduleSave(boardId: string) {
+  pendingBoardId = boardId;
+  if (saveTimer) clearTimeout(saveTimer);
+  if (useGraphStore.getState().saveStatus !== 'saving') useGraphStore.setState({ saveStatus: 'saving' });
+  saveTimer = setTimeout(flushSave, AUTOSAVE_MS);
+}
+
+if (typeof window !== 'undefined') {
+  useGraphStore.subscribe((state, prev) => {
+    if (suppressAutosave || !state.currentBoardId) return;
+    if (
+      state.nodes !== prev.nodes ||
+      state.edges !== prev.edges ||
+      state.userEdgeTypes !== prev.userEdgeTypes
+    ) {
+      scheduleSave(state.currentBoardId);
+    }
+  });
+  window.addEventListener('beforeunload', flushSave);
+  useGraphStore.getState().initBoards();
+}

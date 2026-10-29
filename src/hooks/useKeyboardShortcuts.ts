@@ -3,6 +3,43 @@ import { useGraphStore } from '../store/graphStore';
 import type { EdgeRelationship } from '../types';
 import { BUILTIN_RELATIONSHIPS } from '../types';
 
+/** Shortcut reference shown in the help modal (keep in sync with the handler below). */
+export const SHORTCUT_GROUPS: { title: string; items: { keys: string; label: string }[] }[] = [
+  {
+    title: 'General',
+    items: [
+      { keys: '⌘K', label: 'Command palette' },
+      { keys: '/  or  ⌘F', label: 'Focus search' },
+      { keys: '?', label: 'Show shortcuts' },
+      { keys: 'Esc', label: 'Clear selection / close dialogs' },
+    ],
+  },
+  {
+    title: 'Nodes',
+    items: [
+      { keys: 'N', label: 'Add node' },
+      { keys: 'G', label: 'Add group' },
+      { keys: 'Del', label: 'Delete selection' },
+      { keys: '⌘A', label: 'Select all' },
+      { keys: '⌘C / ⌘V', label: 'Copy / paste' },
+    ],
+  },
+  {
+    title: 'Edit',
+    items: [
+      { keys: '⌘Z', label: 'Undo' },
+      { keys: '⇧⌘Z  or  ⌘Y', label: 'Redo' },
+    ],
+  },
+  {
+    title: 'Edge types',
+    items: [
+      { keys: '1 / 2 / 3', label: 'Call / Reference / Information' },
+      { keys: '4–9, 0', label: 'Custom edge types' },
+    ],
+  },
+];
+
 interface UseKeyboardShortcutsOptions {
   onOpenAddNode: () => void;
   onOpenAddGroup: () => void;
@@ -131,6 +168,7 @@ export function useKeyboardShortcuts({ onOpenAddNode, onOpenAddGroup, observerMo
       if (e.key === 'Escape') {
         e.preventDefault();
         selectNode(null);
+        selectEdge(null);
         return;
       }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import type { UserEdgeType } from '../../types';
@@ -18,6 +18,11 @@ function dashStyleFromArray(arr?: string): 'solid' | 'dashed' | 'dotted' {
 export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
   const addUserEdgeType = useGraphStore((s) => s.addUserEdgeType);
   const updateUserEdgeType = useGraphStore((s) => s.updateUserEdgeType);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   const isEdit = !!editType;
   const [label, setLabel] = useState(editType?.label ?? '');
   const [color, setColor] = useState<string>(editType?.color ?? '#6366f1');
@@ -59,7 +64,7 @@ export default function AddEdgeTypeDialog({ onClose, editType }: Props) {
               autoFocus
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') handleSubmit(); }}
               placeholder="e.g. Dependency"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />

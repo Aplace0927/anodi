@@ -9,7 +9,16 @@
     <script>
       // Prevent flash of wrong theme on load
       (function() {
-        var theme = (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        var theme = null;
+        try {
+          var stored = localStorage.getItem('anodi-theme');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } catch (e) { theme = 'light'; }
+        }
         if (theme === 'dark') document.documentElement.classList.add('dark');
       })();
     </script>

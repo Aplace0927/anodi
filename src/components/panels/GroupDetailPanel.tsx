@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { X, Trash2 } from 'lucide-react';
+import { PanelShell } from './DetailPanel';
 import { useGraphStore } from '../../store/graphStore';
 import type { NodeData, GroupData } from '../../types';
 import ColorPicker from '../ColorPicker';
@@ -24,7 +25,7 @@ export default function GroupDetailPanel() {
   const memberNodes = nodes.filter((n) => data.memberNodeIds.includes(n.id));
 
   return (
-    <div className="flex h-full w-80 flex-col border-l border-gray-300 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+    <PanelShell>
       {/* Panel header */}
       <div className="flex items-center justify-between border-b border-gray-300 px-4 py-3 dark:border-gray-700">
         <div className="flex flex-col gap-0.5">
@@ -94,6 +95,6 @@ export default function GroupDetailPanel() {
           </ul>
         )}
       </div>
-    </div>
+    </PanelShell>
   );
 }

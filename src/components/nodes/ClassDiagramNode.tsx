@@ -3,7 +3,8 @@ import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ClassDiagramData } from "../../types";
 import { useGraphStore } from "../../store/graphStore";
-import { contrastTextColor } from "../ColorPicker";
+import { Box } from "lucide-react";
+import NodeHeader from "./NodeHeader";
 
 type Props = NodeProps & { data: ClassDiagramData & { name?: string } };
 
@@ -12,7 +13,6 @@ const MEMBER_H = 18; // height of each field/method row in px
 const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
   const edges = useGraphStore((s) => s.edges);
   const customColor = data.nodeColor;
-  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
 
   const connectedHandles = useMemo(() => {
     const set = new Set<string>();
@@ -47,24 +47,7 @@ const ClassDiagramNode = memo(({ id, data, selected, dragging }: Props) => {
       <Handle type="target" position={Position.Top} id="top" style={{ background: '#9ca3af', width: 7, height: 7, opacity: 0 }} />
       <Handle type="source" position={Position.Top} id="top" className={connectedHandles.has('top') ? 'anodi-connected' : undefined} style={{ background: '#9ca3af', width: 7, height: 7 }} />
 
-      {/* Header */}
-      <div
-        className={`anodi-export-data rounded-t-lg px-3 py-2 text-center ${customColor ? '' : 'bg-purple-700'}`}
-        style={customColor ? { backgroundColor: customColor } : {}}
-      >
-        <span
-          className={`block text-xs ${headerTextColor ? '' : 'text-purple-200'}`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-        >
-          «class»
-        </span>
-        <span
-          className={`block truncate font-bold text-base font-mono ${headerTextColor ? '' : 'text-white'}`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-        >
-          {data.className || data.name || "ClassName"}
-        </span>
-      </div>
+      <NodeHeader kind="class" icon={Box} name={data.className || data.name || 'ClassName'} nodeColor={customColor} mono />
 
       {/* Fields */}
       {!dragging && data.fields.length > 0 && (

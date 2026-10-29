@@ -21,6 +21,10 @@ export interface SourceCodeData extends Record<string, unknown> {
   collapsedLineMap: number[];
   name?: string;
   nodeColor?: string; // custom color for the node header/border
+  /** Highlighted display line numbers (Alt-click a line number). */
+  highlights?: { line: number; color?: string }[];
+  /** Per-line notes keyed by display line number (Shift-click a line number). */
+  lineNotes?: { line: number; text: string }[];
 }
 
 export interface ClassField {
@@ -124,6 +128,9 @@ export const GROUP_MIN_HEIGHT = 120;
 /** Default long-press delay (ms) for add/remove node to/from group. */
 export const GROUP_LONG_PRESS_MS = 600;
 
+/** Grid cell size (px) used by snap-to-grid. */
+export const GRID_SIZE = 20;
+
 // ── Edge types ───────────────────────────────────────────────────
 
 export type BuiltinEdgeRelationship = 'call' | 'reference' | 'information';
@@ -132,6 +139,7 @@ export type EdgeRelationship = BuiltinEdgeRelationship | (string & {});
 export interface AnodiEdgeData extends Record<string, unknown> {
   relationship: EdgeRelationship;
   bendPoints?: { x: number; y: number }[];
+  label?: string;
 }
 
 // ── React Flow node/edge aliases ─────────────────────────────────

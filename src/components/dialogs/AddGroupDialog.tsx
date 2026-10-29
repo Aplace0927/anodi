@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import ColorPicker from '../ColorPicker';
@@ -10,6 +10,11 @@ interface Props {
 
 export default function AddGroupDialog({ onClose, getViewportCenter }: Props) {
   const addGroup = useGraphStore((s) => s.addGroup);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   const [name, setName] = useState('');
   const [color, setColor] = useState<string | undefined>(undefined);
 
@@ -39,7 +44,7 @@ export default function AddGroupDialog({ onClose, getViewportCenter }: Props) {
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') handleAdd(); }}
               placeholder="My Group"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />

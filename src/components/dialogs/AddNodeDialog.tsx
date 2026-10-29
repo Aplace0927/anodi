@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
+import { parseClassDefinition, withIds } from '../../utils/classParse';
 import type { NodeData, SourceLanguage, MemoryUnitSize } from '../../types';
 
 interface Props {
@@ -10,6 +11,14 @@ interface Props {
 
 const LANGS: SourceLanguage[] = ['c', 'cpp', 'python', 'javascript', 'typescript', 'rust', 'go', 'ocaml', 'assembly (x86-64)', 'assembly (arm)'];
 
+const EXT_LANG: Record<string, SourceLanguage> = {
+  c: 'c', h: 'c',
+  cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hh: 'cpp', hxx: 'cpp',
+  py: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript',
+  ts: 'typescript', tsx: 'typescript', rs: 'rust', go: 'go', ml: 'ocaml', mli: 'ocaml',
+  s: 'assembly (x86-64)', asm: 'assembly (x86-64)',
+};
+
 export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
   const addNode = useGraphStore((s) => s.addNode);
   const [nodeType, setNodeType] = useState<'source' | 'class' | 'memory' | 'notepad'>('source');
@@ -17,15 +26,27 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
   const [lang, setLang] = useState<SourceLanguage>('c');
   const [baseAddress, setBaseAddress] = useState('0x0000');
   const [endAddress, setEndAddress] = useState('0x0100');
+  const [code, setCode] = useState('');
+  const [pasteSrc, setPasteSrc] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const parsed = useMemo(() => (pasteSrc.trim() ? parseClassDefinition(pasteSrc) : null), [pasteSrc]);
   const [unitSize, setUnitSize] = useState<MemoryUnitSize>(8);
 
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (EXT_LANG[ext]) setLang(EXT_LANG[ext]);
+    setName(file.name);
+    setCode(await file.text());
+  };
+
   const handleAdd = () => {
-    const n = name.trim() || 'Untitled';
+    const n = name.trim() || (nodeType === 'class' && parsed ? parsed.className : 'Untitled');
     let data: NodeData;
     if (nodeType === 'source') {
-      data = { kind: 'source', language: lang, code: '', collapsedLineMap: [] };
+      data = { kind: 'source', language: lang, code, collapsedLineMap: [] };
     } else if (nodeType === 'class') {
-      data = { kind: 'class', className: n, fields: [], methods: [] };
+      data = { kind: 'class', className: parsed?.className ?? n, ...(parsed ? withIds(parsed) : { fields: [], methods: [] }) };
     } else if (nodeType === 'notepad') {
       data = { kind: 'notepad', content: '' };
     } else {
@@ -104,6 +125,59 @@ export default function AddNodeDialog({ onClose, getViewportCenter }: Props) {
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* Source: prefill from file */}
+          {nodeType === 'source' && (
+            <div>
+              <input ref={fileRef} type="file" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800"
+              >
+                {code ? `Loaded ${code.split('\n').length} lines — choose another file` : 'Prefill from file…'}
+              </button>
+            </div>
+          )}
+
+          {/* Class: paste definition */}
+          {nodeType === 'class' && (
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+                Paste definition (optional)
+              </label>
+              <textarea
+                value={pasteSrc}
+                onChange={(e) => setPasteSrc(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                rows={5}
+                placeholder="C/C++ struct or class, Rust struct + impl, Python class, Java/TS class…"
+                className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              />
+              {pasteSrc.trim() && (
+                <div className="mt-1 max-h-32 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-2 font-mono text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  {parsed ? (
+                    <>
+                      <div className="font-bold">{parsed.className}</div>
+                      {parsed.fields.map((f, i) => (
+                        <div key={`f${i}`}>
+                          <span className="text-blue-600 dark:text-blue-400">{f.type}</span> {f.name}
+                        </div>
+                      ))}
+                      {parsed.methods.map((m, i) => (
+                        <div key={`m${i}`}>
+                          <span className="text-green-700 dark:text-green-500">⚙ </span>
+                          {m.signature}
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="italic text-gray-500">Could not parse a class definition.</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

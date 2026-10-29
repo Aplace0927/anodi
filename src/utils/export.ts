@@ -137,8 +137,9 @@ function themeBgColor(): string {
  * Compute the viewport dimensions and transform needed to fit every node
  * into the output image.  Returns `null` when there is nothing to render.
  */
-function computeFitViewport(padding = 0.1) {
-  const { nodes } = useGraphStore.getState();
+function computeFitViewport(padding = 0.1, onlyIds?: Set<string>) {
+  const all = useGraphStore.getState().nodes;
+  const nodes = onlyIds ? all.filter((n) => onlyIds.has(n.id)) : all;
   if (nodes.length === 0) return null;
 
   const bounds = getNodesBounds(nodes);
@@ -155,12 +156,20 @@ function computeFitViewport(padding = 0.1) {
 
 // ── PNG export ──────────────────────────────────────────────────────
 
-export async function exportToPng() {
-  const el = getFlowElement();
-  if (!el) return;
+export interface PngOptions {
+  selectionOnly?: boolean;
+}
 
-  const fit = computeFitViewport();
-  if (!fit) return;
+/** Render the board (or the current selection) to a PNG data URL. */
+async function renderPngDataUrl(opts: PngOptions = {}): Promise<string> {
+  const el = getFlowElement();
+  if (!el) throw new Error('Canvas not found');
+
+  const { selectedNodeIds, edges } = useGraphStore.getState();
+  const onlyIds = opts.selectionOnly && selectedNodeIds.length > 0 ? new Set(selectedNodeIds) : undefined;
+
+  const fit = computeFitViewport(0.1, onlyIds);
+  if (!fit) throw new Error('Nothing to export');
 
   const { imageWidth, imageHeight, viewport } = fit;
 
@@ -173,24 +182,61 @@ export async function exportToPng() {
   // Flush textarea values into DOM text content so html-to-image can capture them
   const restoreTextareas = flushTextareaValues(el);
 
-  const dataUrl = await toPng(el, {
-    backgroundColor: themeBgColor(),
-    width: imageWidth,
-    height: imageHeight,
-    pixelRatio,
-    style: {
-      width: `${imageWidth}px`,
-      height: `${imageHeight}px`,
-      transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-    },
-  });
+  // When exporting a selection, hide everything that is not selected.
+  const hidden: HTMLElement[] = [];
+  if (onlyIds) {
+    const hide = (n: Element | null) => {
+      if (n instanceof HTMLElement) {
+        hidden.push(n);
+        n.style.visibility = 'hidden';
+      }
+    };
+    el.querySelectorAll('.react-flow__node').forEach((n) => {
+      if (!onlyIds.has(n.getAttribute('data-id') ?? '')) hide(n);
+    });
+    edges.forEach((e) => {
+      if (!onlyIds.has(e.source) || !onlyIds.has(e.target)) {
+        el.querySelectorAll(`[data-testid="rf__edge-${CSS.escape(e.id)}"]`).forEach(hide);
+      }
+    });
+    el.querySelectorAll('.react-flow__edgelabel-renderer').forEach(hide);
+  }
 
-  restoreTextareas();
+  try {
+    return await toPng(el, {
+      backgroundColor: themeBgColor(),
+      width: imageWidth,
+      height: imageHeight,
+      pixelRatio,
+      style: {
+        width: `${imageWidth}px`,
+        height: `${imageHeight}px`,
+        transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+      },
+    });
+  } finally {
+    restoreTextareas();
+    hidden.forEach((n) => { n.style.visibility = ''; });
+  }
+}
 
+/** Download the board as PNG. Throws on failure. */
+export async function exportToPng(opts: PngOptions = {}): Promise<void> {
+  const dataUrl = await renderPngDataUrl(opts);
   const link = document.createElement('a');
-  link.download = 'anodi-board.png';
+  link.download = opts.selectionOnly ? 'anodi-selection.png' : 'anodi-board.png';
   link.href = dataUrl;
   link.click();
+}
+
+/** Copy the board image to the clipboard. Throws on failure. */
+export async function copyImageToClipboard(opts: PngOptions = {}): Promise<void> {
+  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
+    throw new Error('Clipboard image copy is not supported in this browser');
+  }
+  const dataUrl = await renderPngDataUrl(opts);
+  const blob = await (await fetch(dataUrl)).blob();
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
 }
 
 // ── PDF export ──────────────────────────────────────────────────────
@@ -272,17 +318,17 @@ async function embedFont(
 
 export async function exportToPdf() {
   const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
-  if (!flowEl) return;
+  if (!flowEl) throw new Error('Canvas not found');
 
   const fit = computeFitViewport();
-  if (!fit) return;
+  if (!fit) throw new Error('Nothing to export');
 
   const { imageWidth, imageHeight, viewport } = fit;
   const bgColor = themeBgColor();
 
   // ── Snapshot the viewport element via dom-to-svg ──────────────────
   const viewportEl = flowEl.querySelector('.react-flow__viewport') as HTMLElement | null;
-  if (!viewportEl) return;
+  if (!viewportEl) throw new Error('Canvas not found');
 
   // Save originals so we can restore after capture
   const origFlowW = flowEl.style.width;
@@ -437,3 +483,24 @@ export function importFromJson(file: File): Promise<void> {
     reader.readAsText(file);
   });
 }
+
+// ── Toast-reporting wrappers (used by toolbar & command palette) ────
+
+import { toast } from '../store/toastStore';
+
+async function withToast(fn: () => Promise<void> | void, okMsg: string, failMsg: string) {
+  try {
+    await fn();
+    toast.success(okMsg);
+  } catch (err) {
+    console.error(failMsg, err);
+    toast.error(`${failMsg}: ${err instanceof Error ? err.message : 'unknown error'}`);
+  }
+}
+
+export const runExportPng = (selectionOnly = false) =>
+  withToast(() => exportToPng({ selectionOnly }), selectionOnly ? 'Selection exported as PNG' : 'PNG exported', 'PNG export failed');
+export const runExportPdf = () => withToast(exportToPdf, 'PDF exported', 'PDF export failed');
+export const runExportJson = () => withToast(exportToJson, 'JSON exported', 'JSON export failed');
+export const runCopyImage = () => withToast(() => copyImageToClipboard(), 'Image copied to clipboard', 'Could not copy image');
+export const runImportJson = (file: File) => withToast(() => importFromJson(file), 'Board imported', 'JSON import failed');

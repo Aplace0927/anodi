@@ -130,3 +130,39 @@ body,
   box-shadow: none !important;
   border: none !important;
 }
+
+/* ── Panels, context menu, drop overlay ────────────────────────── */
+
+@keyframes anodi-panel-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.anodi-panel-in {
+  animation: anodi-panel-in 0.18s ease-out;
+}
+
+@keyframes anodi-ctx-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.anodi-ctx-menu {
+  transform-origin: top left;
+  animation: anodi-ctx-in 0.1s ease-out;
+}
+
+.anodi-drop-overlay {
+  position: absolute;
+  inset: 8px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #6366f1;
+  border-radius: 16px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  font-weight: 700;
+  pointer-events: none;
+}

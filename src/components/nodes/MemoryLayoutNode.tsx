@@ -1,25 +1,28 @@
-import { memo, useState, useEffect, useMemo } from "react";
+import { memo, useState, useMemo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { Edit2, Check, Plus, Trash2 } from "lucide-react";
-import type {
-  MemoryLayoutData,
-  MemoryCollapsedRange,
-  MemoryCell,
-  MemoryCellType,
-  IntegerSize,
-  Endianness,
-  MemoryNumberKind,
-} from "../../types";
+import { Edit2, Check, Plus, Trash2, MemoryStick, Upload } from "lucide-react";
+import type { MemoryLayoutData, MemoryCell } from "../../types";
 import { useGraphStore } from "../../store/graphStore";
 import { v4 } from "../../utils/uuid";
-import ColorPicker, { contrastTextColor } from "../ColorPicker";
+import { contrastTextColor } from "../ColorPicker";
+import {
+  MEMORY_THRESHOLD,
+  MEMORY_LINES,
+  FIELD_COLORS,
+  parseHexAddr,
+  fmtHex,
+  cellByteSize,
+  numberCellMetaLabel,
+  buildByteMap,
+  buildRowItems,
+} from "../../utils/memory";
+import CellForm from "./memory/CellForm";
+import ImportPanel from "./memory/ImportPanel";
+
+export { MEMORY_THRESHOLD, MEMORY_LINES, cellByteSize };
 
 type Props = NodeProps & { data: MemoryLayoutData & { name?: string } };
-
-// ── Global settings ────────────────────────────────────────────────
-export const MEMORY_THRESHOLD = 0x100;
-export const MEMORY_LINES = 4;
 
 // Fixed pixel heights
 const HEADER_H = 44;
@@ -39,707 +42,12 @@ function addrColWidth(padLen: number): number {
   // "0x" prefix (2 chars) + padLen hex digits, each ~6px at mono 9px font, plus 12px padding
   return Math.max(ADDR_COL_W_BASE, (padLen + 2) * 6 + 12);
 }
-
-// Field colour palette (cycling)
-const FIELD_COLORS = [
-  { bg: "bg-blue-800", text: "text-blue-200", border: "border-blue-500" },
-  { bg: "bg-purple-800", text: "text-purple-200", border: "border-purple-500" },
-  { bg: "bg-teal-800", text: "text-teal-200", border: "border-teal-500" },
-  { bg: "bg-pink-800", text: "text-pink-200", border: "border-pink-500" },
-  { bg: "bg-yellow-800", text: "text-yellow-200", border: "border-yellow-500" },
-];
-
-// ── Byte-level utilities ───────────────────────────────────────────
-
-function parseHexAddr(s: string): number {
-  const trimmed = s.trim().toLowerCase();
-  if (trimmed.startsWith("0x")) {
-    return parseInt(trimmed, 16) || 0;
-  }
-  if (/[a-f]/.test(trimmed)) {
-    return parseInt(trimmed, 16) || 0;
-  }
-  return parseInt(trimmed, 10) || 0;
-}
-
-function fmtHex(n: number, padLen: number): string {
-  return "0x" + n.toString(16).toUpperCase().padStart(padLen, "0");
-}
-
-function parseHexBytes(hexStr: string): number[] {
-  if (!hexStr.trim()) return [];
-  return hexStr
-    .trim()
-    .split(/\s+/)
-    .filter((h) => /^[0-9a-fA-F]{1,2}$/.test(h))
-    .map((h) => parseInt(h, 16));
-}
-
-function textToBytes(str: string): number[] {
-  return Array.from(new TextEncoder().encode(str));
-}
-
-/** Parse an integer string supporting decimal, 0b (binary), 0x (hex), 0o (octal). */
-function parseIntegerValue(str: string): bigint {
-  const s = str.trim();
-  if (!s) return 0n;
-  const negative = s.startsWith("-");
-  const abs = negative ? s.slice(1).trim() : s;
-  let val: bigint;
-  if (abs.startsWith("0b") || abs.startsWith("0B")) {
-    val = BigInt("0b" + abs.slice(2));
-  } else if (abs.startsWith("0x") || abs.startsWith("0X")) {
-    val = BigInt("0x" + abs.slice(2));
-  } else if (abs.startsWith("0o") || abs.startsWith("0O")) {
-    val = BigInt("0o" + abs.slice(2));
-  } else {
-    val = BigInt(abs);
-  }
-  return negative ? -val : val;
-}
-
-/** Convert an integer to bytes with the given size and endianness. */
-function integerToBytes(
-  value: string,
-  size: IntegerSize,
-  endianness: Endianness,
-  signed: boolean,
-): number[] {
-  try {
-    let n = parseIntegerValue(value);
-    if (!signed && n < 0n) throw new Error("unsigned integers cannot be negative");
-    const mask = (1n << BigInt(size * 8)) - 1n;
-    n = n & mask; // truncate to size
-    const bytes: number[] = [];
-    for (let i = 0; i < size; i++) {
-      bytes.push(Number((n >> BigInt(i * 8)) & 0xFFn));
-    }
-    // bytes is little-endian; reverse for big-endian
-    if (endianness === "big") bytes.reverse();
-    return bytes;
-  } catch {
-    return Array(size).fill(0);
-  }
-}
-
-function isIntegerKind(
-  kind: MemoryNumberKind,
-): kind is "int8_t" | "int16_t" | "int32_t" | "int64_t" {
-  return kind === "int8_t" || kind === "int16_t" || kind === "int32_t" || kind === "int64_t";
-}
-
-function numberKindSize(kind: MemoryNumberKind): IntegerSize {
-  switch (kind) {
-    case "int8_t":
-      return 1;
-    case "int16_t":
-      return 2;
-    case "int32_t":
-    case "float":
-      return 4;
-    case "int64_t":
-    case "double":
-      return 8;
-  }
-}
-
-function integerSizeToKind(size?: IntegerSize): MemoryNumberKind {
-  switch (size) {
-    case 1:
-      return "int8_t";
-    case 2:
-      return "int16_t";
-    case 8:
-      return "int64_t";
-    case 4:
-    default:
-      return "int32_t";
-  }
-}
-
-function numberToBytes(
-  value: string,
-  kind: MemoryNumberKind,
-  endianness: Endianness,
-  signed: boolean,
-): number[] {
-  if (kind === "float") {
-    const n = Number(value.trim() || "0");
-    if (!Number.isFinite(n)) throw new Error("invalid float value");
-    const buf = new ArrayBuffer(4);
-    const dv = new DataView(buf);
-    dv.setFloat32(0, n, endianness === "little");
-    return Array.from(new Uint8Array(buf));
-  }
-  if (kind === "double") {
-    const n = Number(value.trim() || "0");
-    if (!Number.isFinite(n)) throw new Error("invalid double value");
-    const buf = new ArrayBuffer(8);
-    const dv = new DataView(buf);
-    dv.setFloat64(0, n, endianness === "little");
-    return Array.from(new Uint8Array(buf));
-  }
-
-  return integerToBytes(value, numberKindSize(kind), endianness, signed);
-}
-
-function getCellNumberKind(cell: MemoryCell): MemoryNumberKind {
-  if (cell.type === "number") return cell.numberKind ?? "int32_t";
-  return integerSizeToKind(cell.integerSize);
-}
-
-function getCellNumberSigned(cell: MemoryCell): boolean {
-  const kind = getCellNumberKind(cell);
-  if (!isIntegerKind(kind)) return true;
-  if (cell.type === "number") return cell.numberSigned ?? true;
-  return true;
-}
-
-function numberKindShortLabel(kind: MemoryNumberKind, signed: boolean): string {
-  if (kind === "float") return "f32";
-  if (kind === "double") return "f64";
-  if (kind === "int8_t") return signed ? "i8" : "u8";
-  if (kind === "int16_t") return signed ? "i16" : "u16";
-  if (kind === "int32_t") return signed ? "i32" : "u32";
-  return signed ? "i64" : "u64";
-}
-
-function numberCellMetaLabel(cell: MemoryCell): string {
-  const kind = getCellNumberKind(cell);
-  const endianLabel = (cell.endianness ?? "little") === "big" ? "BE" : "LE";
-  return `${numberKindShortLabel(kind, getCellNumberSigned(cell))} ${endianLabel}`;
-}
-
-export function cellByteSize(
-  cell: Pick<MemoryCell, "type" | "value" | "fieldSize" | "integerSize" | "numberKind">,
-): number {
-  if (cell.type === "field") return cell.fieldSize ?? 1;
-  if (cell.type === "number") return numberKindSize(cell.numberKind ?? "int32_t");
-  if (cell.type === "integer") return cell.integerSize ?? 4;
-  if (cell.type === "hex")
-    return Math.max(1, parseHexBytes(cell.value ?? "").length);
-  return Math.max(1, textToBytes(cell.value ?? "").length);
-}
-
-// ── Byte annotation map ───────────────────────────────────────────
-
-interface ByteAnnotation {
-  value: number;
-  type: "hex" | "text" | "field" | "number";
-  cellId: string;
-  isFirst: boolean;
-  isLast: boolean;
-  fieldName?: string;
-  fieldStartAddr?: number;
-  fieldEndAddr?: number; // exclusive
-}
-
-function buildByteMap(cells: MemoryCell[]): Map<number, ByteAnnotation> {
-  const map = new Map<number, ByteAnnotation>();
-
-  for (const cell of cells) {
-    const startAddr = parseHexAddr(cell.address);
-
-    if (cell.type === "hex") {
-      const bytes = parseHexBytes(cell.value ?? "");
-      bytes.forEach((b, i) => {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: b,
-            type: "hex",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === bytes.length - 1,
-          });
-      });
-    } else if (cell.type === "text") {
-      const bytes = textToBytes(cell.value ?? "");
-      bytes.forEach((b, i) => {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: b,
-            type: "text",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === bytes.length - 1,
-          });
-      });
-    } else if (cell.type === "field") {
-      const size = cell.fieldSize ?? 1;
-      for (let i = 0; i < size; i++) {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: 0,
-            type: "field",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === size - 1,
-            fieldName: cell.fieldName,
-            fieldStartAddr: startAddr,
-            fieldEndAddr: startAddr + size,
-          });
-      }
-    } else if (cell.type === "number" || cell.type === "integer") {
-      const numberKind = getCellNumberKind(cell);
-      const signed = getCellNumberSigned(cell);
-      const endianness = cell.endianness ?? "little";
-      const bytes = numberToBytes(cell.value ?? "0", numberKind, endianness, signed);
-      bytes.forEach((b, i) => {
-        if (!map.has(startAddr + i))
-          map.set(startAddr + i, {
-            value: b,
-            type: "number",
-            cellId: cell.id,
-            isFirst: i === 0,
-            isLast: i === bytes.length - 1,
-          });
-      });
-    }
-  }
-
-  return map;
-}
-
-// ── Row items ─────────────────────────────────────────────────────
-
-/** A visible row, or a collapsed range marker. */
-type RowItem =
-  | { addr: number; label: string }
-  | { ellipsis: true; fromAddr: number; toAddr: number };
-
-/** Maximum memory range per node: 4 KB (one page). */
-const MAX_MEMORY_RANGE = 0x1000;
-
-function buildRowItems(
-  baseAddress: string,
-  endAddress: string,
-  unitSize: number,
-  collapsedRanges: MemoryCollapsedRange[],
-): RowItem[] {
-  const base = parseHexAddr(baseAddress);
-  const end = parseHexAddr(endAddress);
-  if (end <= base || unitSize <= 0) return [];
-
-  // Safety: clamp to maximum 4 KB range to avoid freezes
-  const clampedEnd = Math.min(end, base + MAX_MEMORY_RANGE);
-
-  const totalBytes = clampedEnd - base;
-
-  const effectiveCollapsed = collapsedRanges.map((r) => ({
-    start: parseHexAddr(r.start),
-    end: parseHexAddr(r.end),
-  }));
-
-  if (totalBytes > MEMORY_THRESHOLD && effectiveCollapsed.length === 0) {
-    const headEnd = base + MEMORY_LINES * unitSize;
-    const tailStart = clampedEnd - MEMORY_LINES * unitSize;
-    if (headEnd < tailStart) {
-      effectiveCollapsed.push({ start: headEnd, end: tailStart });
-    }
-  }
-
-  const padLen = Math.max(4, clampedEnd.toString(16).length);
-  const isCollapsed = (addr: number) =>
-    effectiveCollapsed.some((r) => addr >= r.start && addr < r.end);
-
-  const items: RowItem[] = [];
-  let inCollapse = false;
-  let collapseStart = 0;
-
-  for (let addr = base; addr < clampedEnd; addr += unitSize) {
-    if (isCollapsed(addr)) {
-      if (!inCollapse) {
-        collapseStart = addr;
-        inCollapse = true;
-      }
-    } else {
-      if (inCollapse) {
-        // Emit the ellipsis now that we know where the collapse ends
-        items.push({ ellipsis: true, fromAddr: collapseStart, toAddr: addr });
-        inCollapse = false;
-      }
-      items.push({ addr, label: fmtHex(addr, padLen) });
-    }
-  }
-  // Handle collapse that extends to the end
-  if (inCollapse) {
-    items.push({ ellipsis: true, fromAddr: collapseStart, toAddr: clampedEnd });
-  }
-
-  return items;
-}
-
-// ── Inline add-cell form ──────────────────────────────────────────
-
-interface CellFormProps {
-  cells: MemoryCell[];
-  unitSize: number;
-  padLen: number;
-  onSave: (cellData: Omit<MemoryCell, "id">) => void;
-  onCancel: () => void;
-  cellToEdit?: MemoryCell;
-}
-
-function CellForm({
-  cells,
-  unitSize,
-  padLen,
-  onSave,
-  onCancel,
-  cellToEdit,
-}: CellFormProps) {
-  const [type, setType] = useState<MemoryCellType>("hex");
-  const [address, setAddress] = useState("");
-  const [value, setValue] = useState("");
-  const [fieldName, setFieldName] = useState("");
-  const [fieldSize, setFieldSize] = useState<number | "">(unitSize);
-  const [numberKind, setNumberKind] = useState<MemoryNumberKind>("int32_t");
-  const [numberSigned, setNumberSigned] = useState(true);
-  const [endianness, setEndianness] = useState<Endianness>("little");
-  const [fieldColor, setFieldColor] = useState<string | undefined>(undefined);
-  const [sizeError, setSizeError] = useState(false);
-  const [overlapError, setOverlapError] = useState(false);
-  const [numberValueError, setNumberValueError] = useState(false);
-
-  useEffect(() => {
-    if (cellToEdit) {
-      setType(cellToEdit.type === "integer" ? "number" : cellToEdit.type);
-      setAddress(cellToEdit.address);
-      setValue(cellToEdit.value ?? "");
-      setFieldName(cellToEdit.fieldName ?? "");
-      setFieldSize(cellToEdit.fieldSize ?? "");
-      setNumberKind(getCellNumberKind(cellToEdit));
-      setNumberSigned(getCellNumberSigned(cellToEdit));
-      setEndianness(cellToEdit.endianness ?? "little");
-      setFieldColor(cellToEdit.fieldColor);
-    }
-  }, [cellToEdit]);
-
-  const computedSize =
-    type === "field"
-      ? typeof fieldSize === "number"
-        ? fieldSize
-        : 0
-      : type === "number"
-        ? numberKindSize(numberKind)
-        : type === "hex"
-          ? parseHexBytes(value).length
-          : textToBytes(value).length;
-
-  const handleSave = () => {
-    setSizeError(false);
-    setOverlapError(false);
-    setNumberValueError(false);
-
-    const addr = address.trim();
-    const normalizedAddress = fmtHex(parseHexAddr(addr), padLen);
-
-    let newCellData: Omit<MemoryCell, "id">;
-    if (type === "field") {
-      const sz = typeof fieldSize === "number" && fieldSize > 0 ? fieldSize : 0;
-      if (sz <= 0) {
-        setSizeError(true);
-        return;
-      }
-      newCellData = {
-        type,
-        address: normalizedAddress,
-        fieldName: fieldName.trim() || "field",
-        fieldSize: sz,
-        fieldColor,
-      };
-    } else if (type === "number") {
-      try {
-        if (isIntegerKind(numberKind)) {
-          const parsed = parseIntegerValue(value);
-          if (!numberSigned && parsed < 0n) {
-            throw new Error("unsigned integers cannot be negative");
-          }
-        } else {
-          const parsed = Number(value.trim() || "0");
-          if (!Number.isFinite(parsed)) throw new Error("invalid floating value");
-        }
-      } catch {
-        setNumberValueError(true);
-        return;
-      }
-      newCellData = {
-        type,
-        address: normalizedAddress,
-        value,
-        numberKind,
-        numberSigned: isIntegerKind(numberKind) ? numberSigned : undefined,
-        endianness,
-        fieldColor,
-      };
-    } else {
-      newCellData = { type, address: normalizedAddress, value, fieldColor };
-    }
-
-    // Check for overlap, excluding the cell being edited
-    const newCellStart = parseHexAddr(newCellData.address);
-    const newCellSize = cellByteSize(newCellData);
-    const newCellEnd = newCellStart + newCellSize;
-    const otherCells = cellToEdit
-      ? cells.filter((c) => c.id !== cellToEdit.id)
-      : cells;
-
-    for (const existingCell of otherCells) {
-      const existingStart = parseHexAddr(existingCell.address);
-      const existingSize = cellByteSize(existingCell);
-      const existingEnd = existingStart + existingSize;
-
-      if (newCellStart < existingEnd && newCellEnd > existingStart) {
-        setOverlapError(true);
-        return;
-      }
-    }
-
-    onSave(newCellData);
-  };
-
-  return (
-    <div className="rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/80 p-2 text-xs text-gray-900 dark:text-white">
-      {/* Type selector (disabled when editing) */}
-      <div className="mb-2 flex gap-1">
-        {(["hex", "text", "field", "number"] as MemoryCellType[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              if (cellToEdit) return; // Cannot change type when editing
-              setType(t);
-              setSizeError(false);
-            }}
-            className={`flex-1 rounded border py-0.5 text-xs font-bold uppercase transition-all ${
-              type === t
-                ? "border-orange-500 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400"
-            } ${cellToEdit ? "cursor-not-allowed opacity-60" : "hover:border-gray-500"}`}
-            disabled={!!cellToEdit}
-          >
-            {t === "number" ? "Number" : t}
-          </button>
-        ))}
-      </div>
-
-      {/* Address */}
-      <div className="mb-1 flex items-center gap-1">
-        <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">Address</span>
-        <input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder={`0x${"0".repeat(padLen)}`}
-          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-green-700 dark:text-green-300 focus:outline-none"
-        />
-      </div>
-
-      {type === "field" ? (
-        <>
-          <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Name
-            </span>
-            <input
-              value={fieldName}
-              onChange={(e) => setFieldName(e.target.value)}
-              placeholder="int variable"
-              className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-white focus:outline-none"
-            />
-          </div>
-          <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Size (B)</span>
-              <span className="ml-0.5 text-red-400">*</span>
-            </span>
-            <input
-              type="number"
-              min={1}
-              value={fieldSize}
-              onChange={(e) => {
-                setSizeError(false);
-                const v = parseInt(e.target.value, 10);
-                setFieldSize(isNaN(v) ? "" : v);
-              }}
-              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-white focus:outline-none ${
-                sizeError
-                  ? "border-red-500 ring-1 ring-red-500"
-                  : "border-gray-300 dark:border-gray-600"
-              }`}
-            />
-          </div>
-          {sizeError && (
-            <p className="mb-1 text-xs text-red-400">
-              Size must be ≥ 1 byte.
-            </p>
-          )}
-        </>
-      ) : type === "number" ? (
-        <>
-          <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Type
-            </span>
-            <div className="mr-1 flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setNumberSigned((v) => !v)}
-                className={`relative h-4 w-8 rounded-full border transition-all ${
-                  numberSigned
-                    ? "border-green-500 bg-green-500/30"
-                    : "border-orange-500 bg-orange-500/30"
-                }`}
-                title={numberSigned ? "Switch to unsigned" : "Switch to signed"}
-              >
-                <span
-                  className={`absolute -top-[0.5px] h-4 w-4 rounded-full transition-all text-xs text-gray-200 dark:text-gray-800 ${
-                  numberSigned
-                  ? "-left-[1px] bg-green-600 dark:bg-green-400"
-                  : "left-[17px] bg-orange-600 dark:bg-orange-400"
-                  }`}
-                >
-                  {numberSigned ? "i" : "u"}
-                </span>
-              </button>
-            </div>
-            <div className="grid flex-1 grid-cols-[repeat(4,minmax(0,1fr))_auto_repeat(2,minmax(0,1fr))] gap-x-1">
-              {(["int8_t", "int16_t", "int32_t", "int64_t"] as MemoryNumberKind[]).map((kind) => (
-                <button
-                  key={kind}
-                  onClick={() => setNumberKind(kind)}
-                  className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
-                    numberKind === kind
-                      ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                      : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
-                  }`}
-                >
-                  {numberKindShortLabel(kind, numberSigned)}
-                </button>
-              ))}
-              <span className="py-0.5 text-center text-xs text-gray-400 dark:text-gray-500">|</span>
-              {(["float", "double"] as MemoryNumberKind[]).map((kind) => (
-                <button
-                  key={kind}
-                  onClick={() => setNumberKind(kind)}
-                  className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
-                    numberKind === kind
-                      ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                      : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
-                  }`}
-                >
-                  {numberKindShortLabel(kind, numberSigned)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Endian
-            </span>
-            <div className="flex flex-1 gap-1">
-              {(["little", "big"] as Endianness[]).map((e) => (
-                <button
-                  key={e}
-                  onClick={() => setEndianness(e)}
-                  className={`flex-1 rounded border py-0.5 text-xs font-bold transition-all ${
-                    endianness === e
-                      ? "border-green-500 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                      : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-500"
-                  }`}
-                >
-                  {e === "little" ? "Little" : "Big"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mb-1 flex items-center gap-1">
-            <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              Value
-            </span>
-            <input
-              value={value}
-              onChange={(e) => {
-                setNumberValueError(false);
-                setValue(e.target.value);
-              }}
-              placeholder={isIntegerKind(numberKind) ? "255, 0xFF, 0b11111111, 0o377" : "3.14, -2.5e3"}
-              className={`flex-1 rounded border bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-green-700 dark:text-green-300 focus:outline-none ${
-                numberValueError
-                  ? "border-red-500 ring-1 ring-red-500"
-                  : "border-gray-300 dark:border-gray-600"
-              }`}
-            />
-          </div>
-          {numberValueError && (
-            <p className="mb-1 text-xs text-red-400">
-              Invalid number value.
-            </p>
-          )}
-        </>
-      ) : (
-        <div className="mb-1 flex items-center gap-1">
-          <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-            {type === "hex" ? "Hex bytes" : "Text"}
-          </span>
-          <input
-            value={value}
-            onChange={(e) => {
-              if (type === "hex") {
-                const sanitized = e.target.value.replace(/[^0-9a-fA-F\s]/g, "");
-                setValue(sanitized);
-              } else {
-                setValue(e.target.value);
-              }
-            }}
-            placeholder={type === "hex" ? "41 42 43 00" : "Hello, world"}
-            className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-700 dark:text-gray-200 focus:outline-none"
-          />
-        </div>
-      )}
-
-      <div className="mb-1 flex items-center gap-1">
-        <span className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-          Color
-        </span>
-        <ColorPicker
-          value={fieldColor}
-          onChange={(c) => setFieldColor(c)}
-        />
-      </div>
-
-      {computedSize > 0 && (
-        <p className="mb-1 text-right text-xs text-gray-500">
-          {computedSize} byte{computedSize !== 1 ? "s" : ""} consumed
-        </p>
-      )}
-
-      {overlapError && (
-        <p className="mb-1 text-red-400 text-xs">
-          Memory overlaps with existing content.
-        </p>
-      )}
-
-      <div className="flex justify-end gap-1">
-        <button
-          onClick={onCancel}
-          className="rounded border border-gray-300 dark:border-gray-600 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          className="rounded bg-orange-700 px-2 py-0.5 text-xs font-bold text-white hover:bg-orange-600"
-        >
-          {cellToEdit ? "Save" : "Add"}
-        </button>
-      </div>
-    </div>
-  );
-}
 // ── Main component ─────────────────────────────────────────────────
 
 const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const edges = useGraphStore((s) => s.edges);
@@ -1228,37 +536,51 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
         className={`anodi-export-data flex items-center rounded-t-lg px-3 ${customColor ? '' : 'bg-orange-800'}`}
         style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
       >
-        <div className="flex-1 overflow-hidden">
+        <MemoryStick
+          size={14}
+          className={`mr-2 shrink-0 ${headerTextColor ? '' : 'text-orange-200'}`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
+        />
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div
-            className={`truncate font-mono font-bold text-sm  ${headerTextColor ? '' : 'text-orange-50'}`}
+            className={`truncate font-mono font-bold text-sm ${headerTextColor ? '' : 'text-orange-50'}`}
             style={headerTextColor ? { color: headerTextColor } : undefined}
           >
             {data.name ?? "Untitled"}
-            
           </div>
           <div
-            className={`text-xs ${headerTextColor ? '' : 'text-orange-200'}`}
+            className={`truncate text-xs ${headerTextColor ? '' : 'text-orange-300'}`}
             style={headerTextColor ? { color: headerTextColor } : undefined}
           >
-            <span
-              className={`truncate rounded py-0.5 ${headerTextColor ? '' : 'text-orange-300'}`}
-              style={headerTextColor ? { color: headerTextColor } : undefined}
-            >
-              <span className="font-mono">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
-              {isAutoCollapsed ? " · auto-collapsed" : " "} · {" "}
-              {unitSize}B
-            </span>
+            <span className="font-mono">{data.baseAddress ?? "?"} –{" "}{data.endAddress ?? "?"}</span>
+            {isAutoCollapsed ? " · auto-collapsed" : " "} · {" "}
+            {unitSize}B
           </div>
         </div>
 
         <button
-          className={`shrink-0 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
+          className={`nodrag shrink-0 p-0.5 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
+          style={headerTextColor ? { color: headerTextColor } : undefined}
+          title="Import hexdump / binary / C struct"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+            setShowAddForm(false);
+            setEditingCellId(null);
+            setShowImport((v) => !v);
+          }}
+        >
+          <Upload size={13} />
+        </button>
+        <button
+          className={`shrink-0 p-0.5 ${headerTextColor ? '' : 'text-orange-200'} hover:text-white`}
           style={headerTextColor ? { color: headerTextColor } : undefined}
           title={isEditing ? "Done editing" : "Edit content"}
           onClick={(e) => {
             e.stopPropagation();
             setIsEditing((v) => !v);
             setShowAddForm(false);
+            setShowImport(false);
             setEditingCellId(null);
           }}
         >
@@ -1440,6 +762,20 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
             </div>
           )}
 
+          {showImport && (
+            <ImportPanel
+              baseAddress={data.baseAddress ?? "0x0000"}
+              endAddress={data.endAddress ?? "0x0000"}
+              unitSize={unitSize}
+              cells={cells}
+              onApply={(next) => {
+                updateNodeData(id, { cells: next });
+                setShowImport(false);
+              }}
+              onClose={() => setShowImport(false)}
+            />
+          )}
+
           {showAddForm ? (
             <CellForm
               cells={cells}
@@ -1449,15 +785,28 @@ const MemoryLayoutNode = memo(({ id, data, selected, dragging }: Props) => {
               onCancel={() => setShowAddForm(false)}
             />
           ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowAddForm(true);
-              }}
-              className="flex items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
-            >
-              <Plus size={10} /> Add content
-            </button>
+            <div className="flex gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAddForm(true);
+                }}
+                className="flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
+              >
+                <Plus size={10} /> Add content
+              </button>
+              {!showImport && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowImport(true);
+                  }}
+                  className="flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-gray-300 dark:border-gray-600 py-1 text-xs text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-300"
+                >
+                  <Upload size={10} /> Import
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

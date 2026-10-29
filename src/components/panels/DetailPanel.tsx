@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { X, Plus, Trash2, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import type {
   SourceLanguage,
@@ -25,6 +26,53 @@ function parseHexAddr(s: string): number {
   if (trimmed.startsWith('0x')) return parseInt(trimmed, 16) || 0;
   if (/[a-f]/.test(trimmed)) return parseInt(trimmed, 16) || 0;
   return parseInt(trimmed, 10) || 0;
+}
+
+const PANEL_COLLAPSED_KEY = 'anodi-panel-collapsed';
+
+/** Shared right-hand panel chrome: slide-in animation and collapse-to-tab. */
+export function PanelShell({ children }: { children: ReactNode }) {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(PANEL_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = (v: boolean) => {
+    setCollapsed(v);
+    try {
+      localStorage.setItem(PANEL_COLLAPSED_KEY, v ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => toggle(false)}
+        title="Expand panel"
+        className="anodi-panel-in flex h-full w-7 flex-col items-center gap-3 border-l border-gray-300 bg-white py-3 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+      >
+        <ChevronsLeft size={14} />
+        <span className="text-xs font-bold uppercase tracking-wide" style={{ writingMode: 'vertical-rl' }}>
+          Details
+        </span>
+      </button>
+    );
+  }
+  return (
+    <div className="anodi-panel-in relative flex h-full w-80 flex-col border-l border-gray-300 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <button
+        onClick={() => toggle(true)}
+        title="Collapse panel"
+        className="absolute -left-3 top-1/2 z-10 flex h-10 w-3 -translate-y-1/2 items-center justify-center rounded-l border border-r-0 border-gray-300 bg-white text-gray-400 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-white"
+      >
+        <ChevronsRight size={10} />
+      </button>
+      {children}
+    </div>
+  );
 }
 
 export default function DetailPanel() {
@@ -422,7 +470,7 @@ export default function DetailPanel() {
     data.kind === 'source' ? 'Source Code' : data.kind === 'class' ? 'Class Diagram' : data.kind === 'notepad' ? 'Notepad' : 'Memory Layout';
 
   return (
-    <div className="flex h-full w-80 flex-col border-l border-gray-300 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+    <PanelShell>
       {/* Panel header */}
       <div className="flex items-center justify-between border-b border-gray-300 px-4 py-3 dark:border-gray-700">
         <div className="flex flex-col gap-0.5">
@@ -496,6 +544,6 @@ export default function DetailPanel() {
           </ul>
         </div>
       )}
-    </div>
+    </PanelShell>
   );
 }

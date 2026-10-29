@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { X, ArrowRightLeft, Trash2 } from 'lucide-react';
+import { PanelShell } from './DetailPanel';
 import { useGraphStore } from '../../store/graphStore';
 import type { NodeData, EdgeRelationship } from '../../types';
 import { EDGE_STYLES, BUILTIN_RELATIONSHIPS, getEdgeStyle } from '../../types';
@@ -59,6 +60,7 @@ export default function EdgeDetailPanel() {
   const selectEdge = useGraphStore((s) => s.selectEdge);
   const swapEdgeDirection = useGraphStore((s) => s.swapEdgeDirection);
   const updateEdgeRelationship = useGraphStore((s) => s.updateEdgeRelationship);
+  const updateEdgeLabel = useGraphStore((s) => s.updateEdgeLabel);
   const clearBendPoints = useGraphStore((s) => s.clearBendPoints);
   const userEdgeTypes = useGraphStore((s) => s.userEdgeTypes);
 
@@ -83,7 +85,7 @@ export default function EdgeDetailPanel() {
   };
 
   return (
-    <div className="flex h-full w-80 flex-col border-l border-gray-300 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+    <PanelShell>
       {/* Panel header */}
       <div className="flex items-center justify-between border-b border-gray-300 px-4 py-3 dark:border-gray-700">
         <div className="flex items-center gap-2">
@@ -143,6 +145,21 @@ export default function EdgeDetailPanel() {
         </button>
       </div>
 
+      {/* Label */}
+      <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
+        <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+          Label
+        </label>
+        <input
+          type="text"
+          value={edge.data?.label ?? ''}
+          onChange={(e) => updateEdgeLabel(edge.id, e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          placeholder="Optional edge label"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        />
+      </div>
+
       {/* Bend points section */}
       <div className="border-t border-gray-300 px-4 py-3 dark:border-gray-700">
         <label className="mb-1 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
@@ -189,6 +206,6 @@ export default function EdgeDetailPanel() {
           ))}
         </select>
       </div>
-    </div>
+    </PanelShell>
   );
 }

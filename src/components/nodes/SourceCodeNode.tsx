@@ -1,16 +1,20 @@
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, lazy, Suspense } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
-import MonacoEditor from '@monaco-editor/react';
-import { Edit2, Check } from 'lucide-react';
+import { Edit2, Check, FileCode } from 'lucide-react';
+import NodeHeader from './NodeHeader';
 import type { SourceCodeData, SourceLanguage } from '../../types';
 import { ELLIPSIS_MARKER, findEllipsisIndices } from '../../utils/code';
 import { useGraphStore } from '../../store/graphStore';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { contrastTextColor } from '../ColorPicker';
 import { useTheme } from '../../hooks/useTheme';
+
+const MonacoEditor = lazy(() => import('@monaco-editor/react'));
+
+const DEFAULT_HIGHLIGHT = '#facc15';
+const NOTE_INLINE_MAX = 36;
 
 type Props = NodeProps & { data: SourceCodeData & { name?: string } };
 
@@ -87,6 +91,7 @@ function parseLines(code: string, collapsedLineMap: number[]): LineItem[] {
 
 const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [noteEdit, setNoteEdit] = useState<{ line: number; text: string } | null>(null);
   const updateNodeData = useGraphStore((s) => s.updateNodeData);
   const edges = useGraphStore((s) => s.edges);
   const { theme } = useTheme();
@@ -104,7 +109,31 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
   const items = dragging ? [] : parseLines(data.code, data.collapsedLineMap ?? []);
   const ellipsisIndices = dragging ? [] : findEllipsisIndices(data.code || '');
   const customColor = data.nodeColor;
-  const headerTextColor = customColor ? contrastTextColor(customColor) : undefined;
+  const highlights = data.highlights ?? [];
+  const lineNotes = data.lineNotes ?? [];
+  const hlMap = new Map(highlights.map((h) => [h.line, h.color ?? DEFAULT_HIGHLIGHT]));
+  const noteMap = new Map(lineNotes.map((n) => [n.line, n.text]));
+
+  const toggleHighlight = (line: number) => {
+    updateNodeData(id, {
+      highlights: hlMap.has(line)
+        ? highlights.filter((h) => h.line !== line)
+        : [...highlights, { line }],
+    });
+  };
+  const saveNote = (line: number, text: string) => {
+    const rest = lineNotes.filter((n) => n.line !== line);
+    updateNodeData(id, { lineNotes: text.trim() ? [...rest, { line, text: text.trim() }] : rest });
+  };
+  const onLineNumberClick = (e: React.MouseEvent, line: number) => {
+    if (e.altKey) {
+      e.stopPropagation();
+      toggleHighlight(line);
+    } else if (e.shiftKey) {
+      e.stopPropagation();
+      setNoteEdit({ line, text: noteMap.get(line) ?? '' });
+    }
+  };
 
   // Compute cumulative Y positions for each visible line (for handle placement)
   let yOffset = 0;
@@ -195,34 +224,33 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
         />
       ))}
 
-      {/* Header */}
-      <div
-        className={`anodi-export-data flex items-center gap-2 rounded-t-lg px-3 ${customColor ? '' : 'bg-gray-200 dark:bg-gray-800'}`}
-        style={{ height: HEADER_H, ...(customColor ? { backgroundColor: customColor } : {}) }}
-      >
-        <span
-          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-bold font-mono uppercase text-white ${langColor}`}
-        >
-          {data.language}
-        </span>
-        <span
-          className={`flex-1 truncate text-sm font-bold font-mono ${headerTextColor ? '' : 'text-gray-800 dark:text-gray-100'}`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-        >
-          {data.name ?? 'Untitled'}
-        </span>
-        <button
-          className={`shrink-0 ${headerTextColor ? '' : 'text-gray-500 dark:text-gray-400'} hover:text-gray-900 dark:hover:text-white`}
-          style={headerTextColor ? { color: headerTextColor } : undefined}
-          title={isEditing ? 'Done editing' : 'Edit code'}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsEditing((v) => !v);
-          }}
-        >
-          {isEditing ? <Check size={13} /> : <Edit2 size={13} />}
-        </button>
-      </div>
+      <NodeHeader
+        kind="source"
+        icon={FileCode}
+        name={data.name ?? 'Untitled'}
+        nodeColor={customColor}
+        height={HEADER_H}
+        mono
+        badge={
+          <span
+            className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-bold font-mono uppercase text-white ${langColor}`}
+          >
+            {data.language}
+          </span>
+        }
+        actions={
+          <button
+            className="nodrag opacity-70 hover:opacity-100"
+            title={isEditing ? 'Done editing' : 'Edit code'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsEditing((v) => !v);
+            }}
+          >
+            {isEditing ? <Check size={13} /> : <Edit2 size={13} />}
+          </button>
+        }
+      />
 
       {dragging ? (
         /* ── Drag mode: lightweight placeholder ───────────────────── */
@@ -262,6 +290,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
             className="overflow-hidden rounded border border-gray-300 dark:border-gray-600"
             style={{ height: 300 }}
           >
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-gray-500">Loading editor…</div>}>
             <MonacoEditor
               height="100%"
               language={MONACO_LANG[data.language]}
@@ -278,6 +307,7 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                 wordWrap: 'off',
               }}
             />
+            </Suspense>
           </div>
 
           {/* Collapsed line map — one input per "..." marker */}
@@ -334,13 +364,23 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                 </div>
               );
             }
+            const hl = hlMap.get(item.num);
+            const note = noteMap.get(item.num);
             return (
               <div
                 key={`line-${item.num}-${idx}`}
-                className="flex items-center gap-2 px-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/30"
-                style={{ height: LINE_H }}
+                className="relative flex items-center gap-2 px-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/30"
+                style={{ height: LINE_H, ...(hl ? { backgroundColor: `${hl}33` } : {}) }}
+                title={note}
               >
-                <span className="w-8 shrink-0 select-none text-right font-mono text-xs text-gray-500">
+                {note !== undefined && (
+                  <span className="absolute left-0.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-indigo-500" />
+                )}
+                <span
+                  className="nodrag w-8 shrink-0 cursor-pointer select-none text-right font-mono text-xs text-gray-500 hover:text-indigo-500"
+                  title="Alt-click: highlight line · Shift-click: line note"
+                  onClick={(e) => onLineNumberClick(e, item.num)}
+                >
                   {item.num}
                 </span>
                 <div className="flex-1 overflow-hidden text-xs">
@@ -366,11 +406,61 @@ const SourceCodeNode = memo(({ id, data, selected, dragging }: Props) => {
                     {item.content}
                   </SyntaxHighlighter>
                 </div>
+                {note && note.length <= NOTE_INLINE_MAX && (
+                  <span className="max-w-[40%] shrink-0 truncate font-mono text-xs italic text-gray-400 dark:text-gray-500">
+                    {'// '}
+                    {note}
+                  </span>
+                )}
               </div>
             );
           })}
         </div>
       )}
+
+      {noteEdit && !isEditing && (() => {
+        const pos = linePositions.find((l) => l.num === noteEdit.line);
+        if (!pos) return null;
+        const commit = () => {
+          saveNote(noteEdit.line, noteEdit.text);
+          setNoteEdit(null);
+        };
+        return (
+          <div
+            className="nodrag nopan absolute z-20 flex items-center gap-1 rounded-lg border border-gray-300 bg-white p-1.5 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+            style={{ top: pos.top + LINE_H / 2 + 2, left: 12 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="px-1 text-xs text-gray-500">L{noteEdit.line}</span>
+            <input
+              autoFocus
+              value={noteEdit.text}
+              placeholder="Note…"
+              onChange={(e) => setNoteEdit({ ...noteEdit, text: e.target.value })}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') commit();
+                if (e.key === 'Escape') setNoteEdit(null);
+              }}
+              className="w-44 rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+            <button className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700" onClick={commit}>
+              Save
+            </button>
+            {noteMap.has(noteEdit.line) && (
+              <button
+                className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                onClick={() => {
+                  saveNote(noteEdit.line, '');
+                  setNoteEdit(null);
+                }}
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 });

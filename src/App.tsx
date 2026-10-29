@@ -28,7 +28,29 @@ import { searchNodes } from './utils/search';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { AnodiNode, AnodiEdge, GroupData } from './types';
-import { getEdgeStyle } from './types';
+import { getEdgeStyle, GRID_SIZE } from './types';
+import type { SourceLanguage, NodeData } from './types';
+import { nodeKindColor, DIM_LEVELS, EDGE_OPACITY } from './theme/tokens';
+import ContextMenu from './components/ContextMenu';
+import type { ContextMenuState } from './components/ContextMenu';
+import EmptyState from './components/EmptyState';
+
+const MAX_DROP_BYTES = 512 * 1024;
+const EXT_LANG: Record<string, SourceLanguage> = {
+  c: 'c', h: 'c',
+  cc: 'cpp', cpp: 'cpp', hpp: 'cpp', cxx: 'cpp',
+  py: 'python',
+  js: 'javascript', mjs: 'javascript', cjs: 'javascript',
+  ts: 'typescript', tsx: 'typescript',
+  rs: 'rust',
+  go: 'go',
+  ml: 'ocaml', mli: 'ocaml',
+  s: 'assembly (x86-64)', asm: 'assembly (x86-64)',
+};
+
+function hasFiles(e: React.DragEvent) {
+  return Array.from(e.dataTransfer?.types ?? []).includes('Files');
+}
 
 const nodeTypes = {
   source: SourceCodeNode,
@@ -64,6 +86,16 @@ function AppInner() {
   const addNodeToGroup = useGraphStore((s) => s.addNodeToGroup);
   const removeNodeFromGroup = useGraphStore((s) => s.removeNodeFromGroup);
   const groupHoverDelay = useGraphStore((s) => s.groupHoverDelay);
+  const snapToGrid = useGraphStore((s) => s.snapToGrid);
+  const addNodes = useGraphStore((s) => s.addNodes);
+  const nodeCount = nodes.length;
+
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
+  const [fileDragOver, setFileDragOver] = useState(false);
+  const dragDepth = useRef(0);
+  const overridePos = useRef<{ x: number; y: number } | null>(null);
+  // Group currently hovered by a dragged node before long-press is ready
+  const [hintGroupId, setHintGroupId] = useState<string | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
 
@@ -93,6 +125,7 @@ function AppInner() {
 
   // Expose a helper to get the viewport center in flow coordinates
   const getViewportCenter = useCallback(() => {
+    if (overridePos.current) return overridePos.current;
     const wrapper = reactFlowWrapper.current;
     if (!wrapper) return { x: 300, y: 300 };
     const rect = wrapper.getBoundingClientRect();
@@ -100,6 +133,17 @@ function AppInner() {
       x: rect.width / 2,
       y: rect.height / 2,
     });
+  }, [reactFlowInstance]);
+
+  // The click-position override only applies to a single dialog open
+  useEffect(() => {
+    if (!showAddNode) overridePos.current = null;
+  }, [showAddNode]);
+
+  useEffect(() => {
+    const onFit = () => reactFlowInstance.fitView({ padding: 0.2, duration: 200 });
+    window.addEventListener('anodi-fit-view', onFit);
+    return () => window.removeEventListener('anodi-fit-view', onFit);
   }, [reactFlowInstance]);
 
   // Compute search-matched node IDs
@@ -139,11 +183,12 @@ function AppInner() {
       const isMatch = matchedIds.has(n.id);
       const isGroup = n.type === 'group';
 
-      let opacity = 1;
-      if (hasSelection && !isSelected && !isNeighbor) opacity = 0.35;
-      if (searchQuery && !isMatch) opacity = 0.3;
-      // Hide member nodes while their group is being dragged
-      if (draggingGroupMemberIds.has(n.id)) opacity = 0;
+      // Precedence: hidden > search mismatch > selection non-neighbor > normal
+      let opacity: number = DIM_LEVELS.focused;
+      if (draggingGroupMemberIds.has(n.id)) opacity = DIM_LEVELS.hidden;
+      else if (searchQuery && !isMatch) opacity = DIM_LEVELS.dimmed;
+      else if (hasSelection && !isSelected && !isNeighbor) opacity = DIM_LEVELS.dimmed;
+      else if (isNeighbor && !isSelected) opacity = DIM_LEVELS.neighbor;
 
       // Groups get very low z-index; during long-press, temporarily reorder
       let zIndex: number | undefined;
@@ -155,6 +200,8 @@ function AppInner() {
         if (longPressGroupId === n.id) {
           zIndex = -500;
           dataOverride = { ...n.data, longPressAction: longPressAction } as GroupData & { longPressAction?: '+' | '-' | null };
+        } else if (hintGroupId === n.id) {
+          dataOverride = { ...n.data, hoverHint: true } as GroupData & { hoverHint?: boolean };
         }
       } else if (longPressDragNodeId === n.id && longPressGroupId) {
         // The dragged node goes to the top during long-press
@@ -176,7 +223,7 @@ function AppInner() {
         },
       };
     });
-  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery, longPressGroupId, longPressAction, longPressDragNodeId, draggingGroupId]);
+  }, [nodes, selectedNodeIds, selectedIdSet, neighborIds, matchedIds, searchQuery, longPressGroupId, longPressAction, longPressDragNodeId, draggingGroupId, hintGroupId]);
 
   // Annotate edges with highlight state and arrow markers
   const styledEdges = useMemo((): AnodiEdge[] => {
@@ -208,12 +255,12 @@ function AppInner() {
         },
         style: {
           opacity: isConnectedToDraggingGroup
-            ? 0
+            ? DIM_LEVELS.hidden
             : e.id === selectedEdgeId
-              ? 1
+              ? EDGE_OPACITY.selected
               : hasSelection && !isConnectedToSelected
-                ? 0.2
-                : 0.6,
+                ? EDGE_OPACITY.dimmed
+                : EDGE_OPACITY.normal,
         },
       };
     });
@@ -240,6 +287,7 @@ function AppInner() {
   );
 
   const handlePaneClick = useCallback(() => {
+    setCtxMenu(null);
     selectNode(null);
     selectEdge(null);
   }, [selectNode, selectEdge]);
@@ -334,10 +382,29 @@ function AppInner() {
       if (node.type === 'group') return;
       // Always keep the last mouse position up to date for idle detection
       lastMousePos.current = { x: _event.clientX, y: _event.clientY };
-      if (!longPressReady.current) return;
+      if (!longPressReady.current) {
+        // Subtle "hold to add" hint while hovering a foreign group
+        const fp = reactFlowInstance.screenToFlowPosition({ x: _event.clientX, y: _event.clientY });
+        let hint: string | null = null;
+        for (const gn of useGraphStore.getState().nodes) {
+          if (gn.type !== 'group') continue;
+          const gd = gn.data as GroupData;
+          if (gd.memberNodeIds.includes(node.id)) continue;
+          if (
+            fp.x >= gn.position.x && fp.x <= gn.position.x + (gd.computedWidth || 200) &&
+            fp.y >= gn.position.y && fp.y <= gn.position.y + (gd.computedHeight || 120)
+          ) {
+            hint = gn.id;
+            break;
+          }
+        }
+        setHintGroupId((cur) => (cur === hint ? cur : hint));
+        return;
+      }
+      setHintGroupId(null);
       checkNodeOverGroup(node.id, _event.clientX, _event.clientY);
     },
-    [checkNodeOverGroup]
+    [checkNodeOverGroup, reactFlowInstance]
   );
 
   const handleNodeDragStop = useCallback(
@@ -361,6 +428,7 @@ function AppInner() {
 
       // Clear group drag tracking (re-show member nodes)
       setDraggingGroupId(null);
+      setHintGroupId(null);
 
       // Handle add/remove — only if the overlay icon is currently shown
       if (longPressGroupId && longPressDragNodeId && longPressAction) {
@@ -399,6 +467,95 @@ function AppInner() {
     };
   }, []);
 
+  // ── Context menu handlers ──
+  const openCtx = useCallback(
+    (e: React.MouseEvent | MouseEvent, kind: ContextMenuState['kind'], id?: string) => {
+      e.preventDefault();
+      setCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        kind,
+        id,
+        flowPos: reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+      });
+    },
+    [reactFlowInstance]
+  );
+  const handleNodeContextMenu: NodeMouseHandler = useCallback(
+    (e, node) => {
+      const st = useGraphStore.getState();
+      if (!st.observerMode && !st.selectedNodeIds.includes(node.id)) st.selectNode(node.id);
+      const multi = useGraphStore.getState().selectedNodeIds.length > 1;
+      openCtx(e, multi ? 'selection' : 'node', node.id);
+    },
+    [openCtx]
+  );
+  const handleEdgeContextMenu: EdgeMouseHandler = useCallback(
+    (e, edge) => openCtx(e, 'edge', edge.id),
+    [openCtx]
+  );
+  const handlePaneContextMenu = useCallback(
+    (e: React.MouseEvent | MouseEvent) => openCtx(e, 'pane'),
+    [openCtx]
+  );
+  const handleSelectionContextMenu = useCallback(
+    (e: React.MouseEvent) => openCtx(e, 'selection'),
+    [openCtx]
+  );
+  const closeCtx = useCallback(() => setCtxMenu(null), []);
+  const handleAddNodeAt = useCallback((pos: { x: number; y: number }) => {
+    overridePos.current = pos;
+    setShowAddNode(true);
+  }, []);
+
+  // ── File drop ──
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (observerMode || !hasFiles(e)) return;
+    dragDepth.current++;
+    setFileDragOver(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (observerMode || !hasFiles(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setFileDragOver(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (observerMode || !hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const handleDrop = async (e: React.DragEvent) => {
+    dragDepth.current = 0;
+    setFileDragOver(false);
+    if (observerMode || !hasFiles(e)) return;
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.size <= MAX_DROP_BYTES);
+    if (files.length === 0) return;
+    const origin = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const specs: { name: string; data: NodeData; position: { x: number; y: number } }[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      let text: string;
+      try {
+        text = await file.text();
+      } catch {
+        continue;
+      }
+      if (text.includes('\u0000')) continue; // binary
+      const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+      const lang = EXT_LANG[ext];
+      const position = { x: origin.x + specs.length * 40, y: origin.y + specs.length * 40 };
+      specs.push({
+        name: file.name,
+        position,
+        data: lang
+          ? { kind: 'source', language: lang, code: text, collapsedLineMap: [] }
+          : { kind: 'notepad', content: text },
+      });
+    }
+    if (specs.length > 0) addNodes(specs);
+  };
+
   useKeyboardShortcuts({
     onOpenAddNode: useCallback(() => setShowAddNode(true), []),
     onOpenAddGroup: useCallback(() => setShowAddGroup(true), []),
@@ -411,7 +568,16 @@ function AppInner() {
 
       <div className="relative flex flex-1 overflow-hidden" style={{ marginTop: 48 }}>
         {/* Canvas */}
-        <div className="flex-1" ref={reactFlowWrapper}>
+        <div
+          className="relative flex-1"
+          ref={reactFlowWrapper}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {fileDragOver && <div className="anodi-drop-overlay">Drop files to create nodes</div>}
+          {nodeCount === 0 && !observerMode && <EmptyState onAddNode={() => setShowAddNode(true)} />}
           <ReactFlow<AnodiNode, AnodiEdge>
             nodes={styledNodes}
             edges={styledEdges}
@@ -423,6 +589,12 @@ function AppInner() {
             onNodeClick={handleNodeClick}
             onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
+            onNodeContextMenu={handleNodeContextMenu}
+            onEdgeContextMenu={handleEdgeContextMenu}
+            onPaneContextMenu={handlePaneContextMenu}
+            onSelectionContextMenu={handleSelectionContextMenu}
+            snapToGrid={snapToGrid}
+            snapGrid={[GRID_SIZE, GRID_SIZE]}
             onNodeDragStart={observerMode ? undefined : handleNodeDragStart}
             onNodeDrag={observerMode ? undefined : handleNodeDrag}
             onNodeDragStop={observerMode ? undefined : handleNodeDragStop}
@@ -436,19 +608,21 @@ function AppInner() {
             minZoom={0.1}
             maxZoom={4}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={theme === 'dark' ? '#374151' : '#d1d5db'} />
+            {snapToGrid ? (
+              <Background
+                key="grid-lines"
+                variant={BackgroundVariant.Lines}
+                gap={GRID_SIZE}
+                lineWidth={0.5}
+                color={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
+              />
+            ) : (
+              <Background key="grid-dots" variant={BackgroundVariant.Dots} gap={20} size={1} color={theme === 'dark' ? '#374151' : '#d1d5db'} />
+            )}
             <Controls className={theme === 'dark' ? '!border-gray-700 !bg-gray-800 !text-white' : '!border-gray-300 !bg-white !text-gray-700'} onInteractiveChange={(interactive) => setObserverMode(!interactive)} />
             <MiniMap
               className={theme === 'dark' ? '!border-gray-700 !bg-gray-800' : '!border-gray-300 !bg-gray-100'}
-              nodeColor={(n) => {
-                const d = n.data as { kind?: string; nodeColor?: string; groupColor?: string };
-                if (d.kind === 'group') return d.groupColor || '#6366f1';
-                if (d.nodeColor) return d.nodeColor;
-                if (d.kind === 'source') return '#6366f1';
-                if (d.kind === 'class') return '#a855f7';
-                if (d.kind === 'notepad') return '#f59e0b';
-                return '#f97316';
-              }}
+              nodeColor={(n) => nodeKindColor(n.data as NodeData)}
             />
           </ReactFlow>
         </div>
@@ -464,6 +638,7 @@ function AppInner() {
         })()}
         {selectedEdgeId && <EdgeDetailPanel />}
       </div>
+      <ContextMenu state={ctxMenu} onClose={closeCtx} onAddNodeAt={handleAddNodeAt} />
     </div>
   );
 }

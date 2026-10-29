@@ -248,6 +248,14 @@ const CustomEdge = memo(
               style={{ backgroundColor: style.color }}
             >
               {style.label}
+              {data?.label ? (
+                <span
+                  className="ml-1 inline-block max-w-[140px] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-normal opacity-95"
+                  title={data.label}
+                >
+                  · {data.label}
+                </span>
+              ) : null}
             </span>
           </div>
           {/* Draggable control points (visible when edge is selected) */}

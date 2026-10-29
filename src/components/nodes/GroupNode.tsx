@@ -5,12 +5,13 @@ import { GROUP_MIN_WIDTH, GROUP_MIN_HEIGHT, GROUP_HEADER_HEIGHT } from '../../ty
 import { contrastTextColor } from '../ColorPicker';
 
 function GroupNodeComponent({ data }: NodeProps) {
-  const gd = data as unknown as GroupData & { longPressAction?: '+' | '-' | null };
+  const gd = data as unknown as GroupData & { longPressAction?: '+' | '-' | null; hoverHint?: boolean };
   const color = gd.groupColor || '#6366f1';
   const width = gd.computedWidth || GROUP_MIN_WIDTH;
   const height = gd.computedHeight || GROUP_MIN_HEIGHT;
   const textColor = contrastTextColor(color);
   const action = gd.longPressAction;
+  const hint = !!gd.hoverHint && !action;
 
   // Border glow: green for add, red for remove
   const glowColor = action === '+' ? '#22c55e' : action === '-' ? '#ef4444' : undefined;
@@ -22,7 +23,7 @@ function GroupNodeComponent({ data }: NodeProps) {
         width,
         height,
         borderRadius: 16,
-        border: `2px solid ${glowColor ?? color}`,
+        border: hint ? `2px dashed ${color}` : `2px solid ${glowColor ?? color}`,
         backgroundColor: `${color}33`,
         position: 'relative',
         pointerEvents: 'all',
@@ -54,6 +55,12 @@ function GroupNodeComponent({ data }: NodeProps) {
           >
             {action === '+' ? '＋ Adding Node' : '− Removing Node'}
           </span>
+        </div>
+      )}
+
+      {hint && (
+        <div style={{ position: 'absolute', top: -26, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+          <span className="whitespace-nowrap rounded bg-black/55 px-2 py-0.5 text-xs text-white/90">hold to add</span>
         </div>
       )}
 
